@@ -7,4 +7,19 @@ Sphinx
 coverage
 awscli
 flake8
+black
+pipreqs
 python-dotenv>=0.5.1
+pre-commit
+
+# general packages
+tqdm
+
+# project specific packages
+numpy
+torch
+torch-scatter #always throws an error
+wandb
+
+
+
