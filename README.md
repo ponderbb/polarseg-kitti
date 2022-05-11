@@ -3,7 +3,21 @@ polarseg-kitti
 
 Re-implementation of the PolarNet architecture, developed by Zhang et al.
 
-Project Organization
+## Initial steps
+
+Start by autoatcially generating an environment for *conda* or *venv* with the following command in the top directory:
+
+`$ make create_environment` 
+
+After activating this environment, install the requirements:
+
+`$ make requirements`
+
+Finally, initialize the [pre-commit](https://pre-commit.com/) git hooks:
+
+`$ make lint`
+
+## Project Organization
 ------------
 
     ├── LICENSE
@@ -11,10 +25,10 @@ Project Organization
     ├── README.md          <- The top-level README for developers using this project.
     ├── data
     │   ├── debug          <- Data from third party sources.
-        ├── sequences      <- Read more about the data setup in the other README
-            ├── 00/           
-                │   ├── velodyne/
-                │   └── labels/
+    |   ├── sequences      <- Read more about the data setup in the other README
+    |       ├── 00/           
+    |           │   ├── velodyne/
+    |           │   └── labels/
     │
     ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
     │
