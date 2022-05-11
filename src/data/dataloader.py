@@ -24,6 +24,7 @@ class SemanticKITTI(Dataset):
                 "/".join([path, "sequences", str(sequence_folder).zfill(2), "velodyne"])
             )
         self.image_list.sort()
+        print(len(self.image_list))
 
     def __len__(self):
         return len(self.image_list)
