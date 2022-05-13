@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from dropblock import DropBlock2D
+import torch_scatter
 
 class ptBEVnet(nn.Module):
     
@@ -52,20 +52,24 @@ class ptBEVnet(nn.Module):
             batch_pt_fea = torch.index_select(batch_pt_fea, dim=0, index=shuffled_ind)
             batch_xy_ind = torch.index_select(batch_xy_ind, dim=0, index=shuffled_ind)
 
-            unq, unq_inv, unq_cnt = torch.unique(batch_xy_ind,return_inverse=True, return_counts=True, dim=0)
+            unq, unq_inv, unq_cnt= torch.unique(batch_xy_ind, return_inverse=True,return_counts=True, dim=0)
             unq = unq.type(torch.int64)
         
-            grp_ind = grp_range_torch(unq_cnt, self.device)[torch.argsort(torch.argsort(unq_inv))]
-            remain_ind = grp_ind < self.max_pt
-            
-            batch_pt_fea = batch_pt_fea[remain_ind,:]
-            unq_inv = unq_inv[remain_ind]
-        
             pointnet_fea = self.Simplified_PointNet(batch_pt_fea)
+            
+
+
+            
+            #TODO It takes so long time
+            # max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
             max_pointnet_fea_list = []
-            for i in range(len(unq_cnt)):
+            for i in range(len(unq[0])):
                 max_pointnet_fea_list.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
             max_pointnet_fea = torch.stack(max_pointnet_fea_list)
+
+
+
+
             nheight_pointnet_fea = self.fea_compression(max_pointnet_fea)
 
             batch_out_data = torch.zeros(batch_out_data_dim, dtype=torch.float32).to(self.device)
@@ -78,11 +82,3 @@ class ptBEVnet(nn.Module):
         unet_fea = self.BEVUNet(to_cnn, circular_padding)
  
         return unet_fea
-
-#TODO undertanding grp_range_torch
-def grp_range_torch(a,gpu):
-    idx = torch.cumsum(a,0)
-    id_arr = torch.ones(idx[-1],dtype = torch.int64,device=gpu)
-    id_arr[0] = 0
-    id_arr[idx[:-1]] = -a[:-1]+1
-    return torch.cumsum(id_arr,0)
