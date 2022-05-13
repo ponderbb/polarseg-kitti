@@ -8,12 +8,13 @@ from torch.utils.data import Dataset
 
 
 class SemanticKITTI(Dataset):
-    def __init__(self, path, data_split="train") -> None:
+    def __init__(self, path, data_split="train", reflection=True) -> None:
 
         with open("semantic-kitti.yaml", "r") as stream:
             dataset_yaml = yaml.safe_load(stream)
 
         self.data_split = data_split
+        self.reflection = reflection
         self.learning_map = dataset_yaml["learning_map"]
         self.scan_list = []
         self.label_list = []
@@ -33,6 +34,7 @@ class SemanticKITTI(Dataset):
         return len(self.scan_list)
 
     def __getitem__(self, index):
+        # scan is containing the (x,y,z, reflection)
         scan = np.fromfile(self.scan_list[index], dtype=np.float32).reshape(-1, 4)
         if self.data_split == "test":
             labels = np.zeros(shape=scan[:, 0].shape, dtype=int)
@@ -42,7 +44,10 @@ class SemanticKITTI(Dataset):
             labels[list(self.learning_map.keys())] = list(self.learning_map.values())  # remap from cross-entropy labels
             labels = labels.reshape(-1, 1)
 
-        data_tuple = (scan, labels)
+        if self.reflection:
+            data_tuple = (scan, labels)
+        else:
+            data_tuple = (scan[:, :3], labels)
 
         return data_tuple
 
