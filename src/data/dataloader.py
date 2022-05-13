@@ -51,6 +51,37 @@ class SemanticKITTI(Dataset):
 
         return data_tuple
 
+class cart_voxel_dataset(Dataset):
+    def __init__(self, in_dataset, grid_size, fixed_volume=False, max_volume: list = [50,50,1.5], min_volume: list = [-50,-50,-3], flip_augmentation=False, random_rotation=False):
+        self.in_dataset = in_dataset
+        self.grid_size = np.asarray(grid_size)
+        self.fixed_vol = fixed_volume
+        self.max_vol = np.asarray(max_volume)
+        self.min_vol = np.asarray(min_volume)
+        self.flip_aug = flip_augmentation
+        self.rot_aug = random_rotation
+
+    
+    def __len__(self):
+        return len(self.in_dataset)
+
+
+    def __getitem__(self, index):
+
+        # extrat data        
+        data, labels = self.in_dataset[index]
+        xyz = data[:,:3]
+        reflection = data[:,3]
+
+        # TODO: augmentations
+
+        # fix volume space
+        if self.fixed_vol:
+            ROI = self.max_vol-self.min_vol
+            intervals = ROI/(self.grid_size-1)
+
+        return None
+
 
 def getPath(dir):
     for root, _, files in os.walk(dir):
@@ -60,7 +91,8 @@ def getPath(dir):
 
 def main():
 
-    train_dataset = SemanticKITTI(path="/root/repos/polarseg-kitti/data/debug", data_split="test")
+    semkitti = SemanticKITTI(path="/root/repos/polarseg-kitti/data/debug", data_split="test")
+    train_dataset = cart_voxel_dataset(semkitti, grid_size = [480,360,32], fixed_volume=True)
     dummy_dataloader = torch.utils.data.DataLoader(train_dataset)
 
     for data_tuple in dummy_dataloader:
