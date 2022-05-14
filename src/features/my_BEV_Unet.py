@@ -5,11 +5,11 @@ import torch.nn.functional as F
 
 class BEV_Unet(nn.Module):
 
-    def __init__(self,n_class,n_height,dropout = 0.5,circular_padding = False):
+    def __init__(self,n_class,n_height,dropout = 0.5,circular_padding = False, block_size = 7):
         super(BEV_Unet, self).__init__()
         self.n_class = n_class
         self.n_height = n_height
-        self.network = UNet(n_class*n_height,n_height,dropout,circular_padding)
+        self.network = UNet(n_class*n_height,n_height,dropout,circular_padding, block_size)
 
     def forward(self, x, circular_padding):
         x = self.network(x, circular_padding)
@@ -22,7 +22,7 @@ class BEV_Unet(nn.Module):
 
 class UNet(nn.Module):
 
-    def __init__(self, n_class,n_height, dropout,circular_padding):
+    def __init__(self, n_class,n_height, dropout,circular_padding, block_size):
         super(UNet, self).__init__()
         self.norm = nn.BatchNorm2d(n_height)
         self.inc = double_CBR(n_height, 64, circular_padding)
@@ -30,10 +30,10 @@ class UNet(nn.Module):
         self.down2 = down(128, 256, circular_padding)
         self.down3 = down(256, 512, circular_padding)
         self.down4 = down(512, 512, circular_padding)
-        self.up1 = up(1024, 256, circular_padding, drop_p=dropout)
-        self.up2 = up(512, 128, circular_padding, drop_p=dropout)
-        self.up3 = up(256, 64, circular_padding, drop_p=dropout)
-        self.up4 = up(128, 64, circular_padding, drop_p=dropout)
+        self.up1 = up(1024, 256, circular_padding, drop_p=dropout, block_size = block_size)
+        self.up2 = up(512, 128, circular_padding, drop_p=dropout, block_size = block_size)
+        self.up3 = up(256, 64, circular_padding, drop_p=dropout, block_size = block_size)
+        self.up4 = up(128, 64, circular_padding, drop_p=dropout, block_size = block_size)
         self.outc = nn.Conv2d(64, n_class, 1)
 
     def forward(self, x, circular_padding):
@@ -93,11 +93,12 @@ class down(nn.Module):
 
 
 class up(nn.Module):
-    def __init__(self, in_ch, out_ch, circular_padding, drop_p = 0.5):
+    def __init__(self, in_ch, out_ch, circular_padding, drop_p = 0.5, block_size = 7):
         super(up, self).__init__()
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.conv = double_CBR(in_ch, out_ch, circular_padding)
         self.drop_prob = drop_p
+        self.block_size = block_size
 
     def forward(self, x1, x2, circular_padding):
         x1 = self.up(x1)
@@ -109,22 +110,13 @@ class up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         x = self.conv(x, circular_padding)
 
-        # get gamma value
-        gamma = compute_gamma(self.drop_prob, 7)
+        gamma = self.drop_prob / (self.block_size ** 2)
 
-        # sample mask
-        mask = (torch.rand(x.shape[0], *x.shape[2:]) < gamma).float()
+        mask = (torch.rand(x.shape[0], *x.shape[2:]) < gamma).float().to(x.device)
 
-        # place mask on input device
-        mask = mask.to(x.device)
-
-        # compute block mask
         block_mask = compute_block_mask(mask, 7)
 
-        # apply block mask
         out = x * block_mask[:, None, :, :]
-
-        # scale output
         out = out * block_mask.numel() / block_mask.sum()
 
         return out
@@ -141,6 +133,3 @@ def compute_block_mask(mask, block_size):
     block_mask = 1 - block_mask.squeeze(1)
 
     return block_mask
-
-def compute_gamma(drop_prob, block_size):
-    return drop_prob / (block_size ** 2)
