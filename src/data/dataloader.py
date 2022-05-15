@@ -5,11 +5,12 @@ import numpy as np
 import torch
 import yaml
 from torch.utils.data import Dataset
+
 import src.misc.utils as utils
 
 
 class SemanticKITTI(Dataset):
-    def __init__(self, path, data_split="train", reflection=True, fixed_volume = True) -> None:
+    def __init__(self, path, data_split="train", reflection=True, fixed_volume=True) -> None:
 
         with open("semantic-kitti.yaml", "r") as stream:
             dataset_yaml = yaml.safe_load(stream)
@@ -81,7 +82,7 @@ class cart_voxel_dataset(Dataset):
         # extrat data
         data, labels = self.in_dataset[index]
         xyz = data[:, :3]
-        reflection = data[:, 3]
+        # reflection = data[:, 3]
 
         # TODO: augmentations
 
@@ -92,12 +93,10 @@ class cart_voxel_dataset(Dataset):
         # calculate the grid indices
         if self.fixed_vol:
             xyz = utils.clip(xyz, self.min_vol, self.max_vol)
-        
-        grid_index = np.floor(xyz-self.min_vol/intervals).astype(int) # NOTE: cite this
 
-        voxel_position = np.zeros(self.grid_size)
-        
+        # grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
 
+        # voxel_position = np.zeros(self.grid_size)
 
         return None
 
