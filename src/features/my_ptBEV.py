@@ -73,9 +73,9 @@ class ptBEVnet(nn.Module):
             pointnet_fea = self.Simplified_PointNet(batch_pt_fea)
 
 
-            max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
-            #unq_num = len(unq[0])
-            #max_pointnet_fea = get_max_fea(unq_num, pointnet_fea, unq_inv)
+            #max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
+            unq_num = len(unq_cnt)
+            max_pointnet_fea = get_max_fea(unq_num, pointnet_fea, unq_inv)
             
             nheight_pointnet_fea = self.fea_compression(max_pointnet_fea)
 
@@ -120,7 +120,8 @@ def index_sort(sort_ind, xy_ind, pt_num):
 def get_max_fea(num, feature, unq_inv) : 
     max_pointnet_fea_list = []
     for i in range(num):
-        max_pointnet_fea_list.append(torch.max(feature[unq_inv==i],dim=0)[0])
+        condition = unq_inv==i
+        max_pointnet_fea_list.append(torch.max(feature[condition],dim=0)[0])
     max_pointnet_fea = torch.stack(max_pointnet_fea_list)
     return max_pointnet_fea
 
