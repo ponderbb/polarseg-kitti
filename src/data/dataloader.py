@@ -95,47 +95,49 @@ class cart_voxel_dataset(Dataset):
 
         # get the coordinates of the voxels
         voxel_position = np.zeros(self.grid_size, dtype=np.float32)
-        voxel_position = np.indices(self.grid_size)*intervals.reshape([-1,1,1,1])+self.min_vol.reshape([-1,1,1,1])
+        voxel_position = np.indices(self.grid_size) * intervals.reshape([-1, 1, 1, 1]) + self.min_vol.reshape(
+            [-1, 1, 1, 1]
+        )
 
         # process the labels and vote for one per voxel
 
         voxel_label = np.zeros(self.grid_size, dtype=int)
-        raw_point_label = np.concatenate([grid_index, labels.reshape(-1,1)], axis=1)
-        sorted_point_label = raw_point_label[np.lexsort((grid_index[:,0], grid_index[:,1], grid_index[:,2])),:]
+        raw_point_label = np.concatenate([grid_index, labels.reshape(-1, 1)], axis=1)
+        sorted_point_label = raw_point_label[np.lexsort((grid_index[:, 0], grid_index[:, 1], grid_index[:, 2])), :]
         voxel_label = label_voting(np.copy(voxel_label), sorted_point_label)
 
         # center points on voxel
-        voxel_center = (grid_index.astype(float)+0.5)*intervals + self.min_vol
-        centered_xyz = xyz-voxel_center
-        pt_features = np.concatenate((centered_xyz,xyz,reflection.reshape(-1,1)),axis=1)
+        voxel_center = (grid_index.astype(float) + 0.5) * intervals + self.min_vol
+        centered_xyz = xyz - voxel_center
+        pt_features = np.concatenate((centered_xyz, xyz, reflection.reshape(-1, 1)), axis=1)
 
         data_tuple = (voxel_label, grid_index, labels, pt_features)
-        '''
+        """
         *data_tuple*
         ---
         voxel_label: voxel-level label
         grid_index: individual point's grid index
         labels: individual point's label
         pt_features: [centered xyz, xyz, reflection]
-        '''
+        """
         return data_tuple
 
 
-def label_voting(voxel_label: np.array, sorted_list: list, max_label_size = 256):
+def label_voting(voxel_label: np.array, sorted_list: list, max_label_size=256):
 
     # FIXME: way to similar to the original, figure out how to do it differenlty (only do a lookup array for existing labels or sth)
     # TODO: add numba decorator to speed up process
     label_counter = np.zeros((max_label_size,), dtype=np.uint)
-    label_counter[sorted_list[0,3]] = 1
-    compare_label_a = sorted_list[0,:3] 
-    for i in range(1,sorted_list.shape[0]):
-        compare_label_b = sorted_list[i,:3]
+    label_counter[sorted_list[0, 3]] = 1
+    compare_label_a = sorted_list[0, :3]
+    for i in range(1, sorted_list.shape[0]):
+        compare_label_b = sorted_list[i, :3]
         if not np.all(compare_label_a == compare_label_b):
-            voxel_label[compare_label_a[0],compare_label_a[1],compare_label_a[2]] = np.argmax(label_counter)
-            compare_label_a=compare_label_b
+            voxel_label[compare_label_a[0], compare_label_a[1], compare_label_a[2]] = np.argmax(label_counter)
+            compare_label_a = compare_label_b
             label_counter = np.zeros((max_label_size,), dtype=np.uint)
-        label_counter[sorted_list[i,3]] += 1
-    voxel_label[compare_label_a[0],compare_label_a[1],compare_label_a[2]] = np.argmax(label_counter)
+        label_counter[sorted_list[i, 3]] += 1
+    voxel_label[compare_label_a[0], compare_label_a[1], compare_label_a[2]] = np.argmax(label_counter)
     return voxel_label
 
 
