@@ -1,6 +1,3 @@
-import os
-from pathlib import Path
-
 import numpy as np
 import torch
 import yaml
@@ -23,13 +20,12 @@ class SemanticKITTI(Dataset):
         self.label_list = []
         try:
             split = dataset_yaml["split"][self.data_split]
-            print(split)
         except ValueError:
             print("Incorrect set type")
 
         for sequence_folder in split:
-            self.scan_list += getPath("/".join([path, "sequences", str(sequence_folder).zfill(2), "velodyne"]))
-            self.label_list += getPath("/".join([path, "sequences", str(sequence_folder).zfill(2), "labels"]))
+            self.scan_list += utils.getPath("/".join([path, "sequences", str(sequence_folder).zfill(2), "velodyne"]))
+            self.label_list += utils.getPath("/".join([path, "sequences", str(sequence_folder).zfill(2), "labels"]))
         self.scan_list.sort()
         self.label_list.sort()
 
@@ -82,7 +78,7 @@ class cart_voxel_dataset(Dataset):
         # extrat data
         data, labels = self.in_dataset[index]
         xyz = data[:, :3]
-        # reflection = data[:, 3]
+        reflection = data[:, 3]
 
         # TODO: augmentations
 
@@ -94,28 +90,63 @@ class cart_voxel_dataset(Dataset):
         if self.fixed_vol:
             xyz = utils.clip(xyz, self.min_vol, self.max_vol)
 
-        # grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
+        # calculate the grid index for each point
+        grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
 
-        # voxel_position = np.zeros(self.grid_size)
+        # get the coordinates of the voxels
+        voxel_position = np.zeros(self.grid_size, dtype=np.float32)
+        voxel_position = np.indices(self.grid_size)*intervals.reshape([-1,1,1,1])+self.min_vol.reshape([-1,1,1,1])
 
-        return None
+        # process the labels and vote for one per voxel
+
+        voxel_label = np.zeros(self.grid_size, dtype=int)
+        raw_point_label = np.concatenate([grid_index, labels.reshape(-1,1)], axis=1)
+        sorted_point_label = raw_point_label[np.lexsort((grid_index[:,0], grid_index[:,1], grid_index[:,2])),:]
+        voxel_label = label_voting(np.copy(voxel_label), sorted_point_label)
+
+        # center points on voxel
+        voxel_center = (grid_index.astype(float)+0.5)*intervals + self.min_vol
+        centered_xyz = xyz-voxel_center
+        pt_features = np.concatenate((centered_xyz,xyz,reflection.reshape(-1,1)),axis=1)
+
+        data_tuple = (voxel_label, grid_index, labels, pt_features)
+        '''
+        *data_tuple*
+        ---
+        voxel_label: voxel-level label
+        grid_index: individual point's grid index
+        labels: individual point's label
+        pt_features: [centered xyz, xyz, reflection]
+        '''
+        return data_tuple
 
 
-def getPath(dir):
-    for root, _, files in os.walk(dir):
-        for f in files:
-            yield str(Path(os.path.join(root, f)))
+def label_voting(voxel_label: np.array, sorted_list: list, max_label_size = 256):
+
+    # FIXME: way to similar to the original, figure out how to do it differenlty (only do a lookup array for existing labels or sth)
+    # TODO: add numba decorator to speed up process
+    label_counter = np.zeros((max_label_size,), dtype=np.uint)
+    label_counter[sorted_list[0,3]] = 1
+    compare_label_a = sorted_list[0,:3] 
+    for i in range(1,sorted_list.shape[0]):
+        compare_label_b = sorted_list[i,:3]
+        if not np.all(compare_label_a == compare_label_b):
+            voxel_label[compare_label_a[0],compare_label_a[1],compare_label_a[2]] = np.argmax(label_counter)
+            compare_label_a=compare_label_b
+            label_counter = np.zeros((max_label_size,), dtype=np.uint)
+        label_counter[sorted_list[i,3]] += 1
+    voxel_label[compare_label_a[0],compare_label_a[1],compare_label_a[2]] = np.argmax(label_counter)
+    return voxel_label
 
 
 def main():
 
-    semkitti = SemanticKITTI(path="/root/repos/polarseg-kitti/data/debug", data_split="test")
+    semkitti = SemanticKITTI(path="/root/repos/polarseg-kitti/data/debug", data_split="train")
     train_dataset = cart_voxel_dataset(semkitti, grid_size=[480, 360, 32], fixed_volume=True)
     dummy_dataloader = torch.utils.data.DataLoader(train_dataset)
 
     for data_tuple in dummy_dataloader:
-        print(data_tuple[0])
-        print(data_tuple[1])
+        print("__")
 
 
 if __name__ == "__main__":
