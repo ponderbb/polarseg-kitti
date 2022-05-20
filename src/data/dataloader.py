@@ -10,17 +10,15 @@ import src.misc.utils as utils
 class SemanticKITTI(Dataset):
     def __init__(self, path, data_split="train", reflection=True, fixed_volume=True) -> None:
 
-        with open("semantic-kitti.yaml", "r") as stream:
-            dataset_yaml = yaml.safe_load(stream)
-
+        self.semkitti_yaml = utils.load_SemKITTI_yaml("semantic-kitti.yaml", label_name=False)
         self.data_split = data_split
         self.reflection = reflection
         self.fixed_volume = fixed_volume
-        self.learning_map = dataset_yaml["learning_map"]
+        self.learning_map = self.semkitti_yaml["learning_map"]
         self.scan_list = []
         self.label_list = []
         try:
-            split = dataset_yaml["split"][self.data_split]
+            split = self.semkitti_yaml["split"][self.data_split]
         except ValueError:
             print("Incorrect set type")
 
@@ -115,6 +113,7 @@ class cart_voxel_dataset(Dataset):
         pt_features = np.concatenate((centered_xyz, xyz, reflection.reshape(-1, 1)), axis=1)
 
         # TODO: version data_tuple based on arguments
+        
         data_tuple = (voxel_label, grid_index, labels, pt_features)
         """
         *data_tuple*
@@ -131,7 +130,6 @@ class cart_voxel_dataset(Dataset):
 def label_voting(voxel_label: np.array, sorted_list: list):
 
     # FIXME: way to similar to the original, figure out how to do it differenlty (only do a lookup array for existing labels or sth)
-    # TODO: add numba decorator to speed up process
     label_counter = np.zeros((256,), dtype=np.uint)
     label_counter[sorted_list[0, 3]] = 1
     compare_label_a = sorted_list[0, :3]
@@ -148,6 +146,8 @@ def label_voting(voxel_label: np.array, sorted_list: list):
 
 def main():
 
+    # debugging the dataloader
+    
     semkitti = SemanticKITTI(path="/root/repos/polarseg-kitti/data/debug", data_split="train")
     train_dataset = cart_voxel_dataset(semkitti, grid_size=[480, 360, 32], fixed_volume=True)
     dummy_dataloader = torch.utils.data.DataLoader(train_dataset)
