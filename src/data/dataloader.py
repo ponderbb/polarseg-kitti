@@ -1,20 +1,51 @@
+from typing import Optional
+
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import yaml
 from numba import jit
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
+from xxlimited import Str
 
 import src.misc.utils as utils
 
 
-class SemanticKITTI(Dataset):
-    def __init__(self, path, data_split="train", reflection=True, fixed_volume=True) -> None:
+class PolarNetDataModule(pl.LightningDataModule):
+    def __init__(self, config_path: str):
+        self.config = utils.load_yaml(config_path)
+        self.data_dir = self.config["data_dir"]
+        self.model_type = self.config["model_type"]
 
+    def setup(self, stage: Optional[str] = None) -> None:
+        self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train")
+        self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
+        self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
+
+        if self.model_type == "traditional":
+            self.voxelised_train = cart_voxel_dataset(self.config, self.semkitti_train, data_split="train")
+            self.voxelised_valid = cart_voxel_dataset(self.config, self.semkitti_valid, data_split="valid")
+            self.voxelised_test = cart_voxel_dataset(self.config, self.semkitti_test, data_split="test")
+        elif self.model_type == "polar":
+            raise NotImplementedError
+
+    def train_dataloader(self):
+        loader_train = DataLoader(self.voxelised_train, batch_size=2)
+        return loader_train
+
+    def valid_dataloader(self):
+        loader_valid = DataLoader(self.voxelised_valid, batch_size=2)
+        return loader_valid
+
+    # def test_dataloader(self):
+    #     return
+
+
+class SemanticKITTI(Dataset):
+    def __init__(self, data_dir: str, data_split="train") -> None:
+        self.data_dir = data_dir
         self.semkitti_yaml = utils.load_SemKITTI_yaml("semantic-kitti.yaml", label_name=False)
         self.data_split = data_split
-        self.reflection = reflection
-        self.fixed_volume = fixed_volume
-        self.learning_map = self.semkitti_yaml["learning_map"]
         self.scan_list = []
         self.label_list = []
         try:
@@ -23,8 +54,12 @@ class SemanticKITTI(Dataset):
             print("Incorrect set type")
 
         for sequence_folder in split:
-            self.scan_list += utils.getPath("/".join([path, "sequences", str(sequence_folder).zfill(2), "velodyne"]))
-            self.label_list += utils.getPath("/".join([path, "sequences", str(sequence_folder).zfill(2), "labels"]))
+            self.scan_list += utils.getPath(
+                "/".join([self.data_dir, "sequences", str(sequence_folder).zfill(2), "velodyne"])
+            )
+            self.label_list += utils.getPath(
+                "/".join([self.data_dir, "sequences", str(sequence_folder).zfill(2), "labels"])
+            )
         self.scan_list.sort()
         self.label_list.sort()
 
@@ -34,48 +69,44 @@ class SemanticKITTI(Dataset):
     def __getitem__(self, index):
         # scan is containing the (x,y,z, reflection)
         scan = np.fromfile(self.scan_list[index], dtype=np.float32).reshape(-1, 4)
+
+        # labels prepared based on semkitti documentation
         if self.data_split == "test":
             labels = np.zeros(shape=scan[:, 0].shape, dtype=int)
         else:
             labels = np.fromfile(self.label_list[index], dtype=np.int32)
             labels = labels & 0xFFFF  # according to the semanticKITTI apilab
-            labels[list(self.learning_map.keys())] = list(self.learning_map.values())  # remap from cross-entropy labels
+            labels[list(self.semkitti_yaml["learning_map"].keys())] = list(
+                self.semkitti_yaml["learning_map"].values()
+            )  # remap from cross-entropy labels
             labels = labels.reshape(-1, 1)
 
-        if self.reflection:
-            data_tuple = (scan, labels)
-        else:
-            data_tuple = (scan[:, :3], labels)
-
-        return data_tuple
+        return (scan, labels)
 
 
-class cart_voxel_dataset(Dataset):
+class cart_voxel_dataset(Dataset, PolarNetDataModule):
     def __init__(
         self,
-        in_dataset,
-        grid_size,
-        fixed_volume=False,
-        max_volume: list = [50, 50, 1.5],
-        min_volume: list = [-50, -50, -3],
-        flip_augmentation=False,
-        random_rotation=False,
+        config: dict,
+        dataset,
+        data_split: str,
     ):
-        self.in_dataset = in_dataset
-        self.grid_size = np.asarray(grid_size)
-        self.fixed_vol = fixed_volume
-        self.max_vol = np.asarray(max_volume, dtype=np.float32)
-        self.min_vol = np.asarray(min_volume, dtype=np.float32)
-        self.flip_aug = flip_augmentation
-        self.rot_aug = random_rotation
+        self.dataset = dataset
+        self.grid_size = np.asarray(config["grid_size"])
+        self.max_vol = np.asarray(config["max_vol"], dtype=np.float32)
+        self.min_vol = np.asarray(config["min_vol"], dtype=np.float32)
+        self.fixed_vol = config["augmentations"]["fixed_vol"]
+        self.flip_aug = config["augmentations"]["flip"]
+        self.rot_aug = config["augmentations"]["rot"]
+        self.reflection = config["reflection"]
 
     def __len__(self):
-        return len(self.in_dataset)
+        return len(self.dataset)
 
     def __getitem__(self, index):
 
         # extrat data
-        data, labels = self.in_dataset[index]
+        data, labels = self.dataset[index]
         xyz = data[:, :3]
         reflection = data[:, 3]
 
@@ -90,16 +121,9 @@ class cart_voxel_dataset(Dataset):
             xyz = utils.clip(xyz, self.min_vol, self.max_vol)
 
         # calculate the grid index for each point
-        grid_index = np.floor(xyz - self.min_vol / intervals).astype(np.int)  # NOTE: cite this
-
-        # get the coordinates of the voxels
-        voxel_position = np.zeros(self.grid_size, dtype=np.float32)
-        voxel_position = np.indices(self.grid_size) * intervals.reshape([-1, 1, 1, 1]) + self.min_vol.reshape(
-            [-1, 1, 1, 1]
-        )
+        grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
 
         # process the labels and vote for one per voxel
-
         voxel_label = np.zeros(self.grid_size, dtype=np.uint8)
         raw_point_label = np.concatenate([grid_index, labels.reshape(-1, 1)], axis=1)
         sorted_point_label = raw_point_label[
@@ -110,20 +134,22 @@ class cart_voxel_dataset(Dataset):
         # center points on voxel
         voxel_center = (grid_index.astype(float) + 0.5) * intervals + self.min_vol
         centered_xyz = xyz - voxel_center
-        pt_features = np.concatenate((centered_xyz, xyz, reflection.reshape(-1, 1)), axis=1)
+        pt_features = np.concatenate((centered_xyz, xyz), axis=1)
 
-        # TODO: version data_tuple based on arguments
-        
-        data_tuple = (voxel_label, grid_index, labels, pt_features)
         """
-        *data_tuple*
+        *complete data_tuple*
         ---
         voxel_label: voxel-level label
         grid_index: individual point's grid index
         labels: individual point's label
         pt_features: [centered xyz, xyz, reflection]
         """
-        return data_tuple
+        # TODO: version data_tuple based on arguments
+
+        if self.reflection:
+            pt_features = np.concatenate((pt_features, reflection.reshape(-1, 1)), axis=1)
+
+        return (voxel_label, grid_index, labels, pt_features)
 
 
 @jit("u1[:,:,:](u1[:,:,:],i8[:,:])", nopython=True, cache=True, parallel=False)
@@ -146,14 +172,24 @@ def label_voting(voxel_label: np.array, sorted_list: list):
 
 def main():
 
-    # debugging the dataloader
-    
-    semkitti = SemanticKITTI(path="/root/repos/polarseg-kitti/data/debug", data_split="train")
-    train_dataset = cart_voxel_dataset(semkitti, grid_size=[480, 360, 32], fixed_volume=True)
-    dummy_dataloader = torch.utils.data.DataLoader(train_dataset)
+    # # debugging the dataloader
+    # config = utils.load_yaml("/root/repos/polarseg-kitti/config/bence_debug.yaml")
 
-    for data_tuple in dummy_dataloader:
-        print("__")
+    # semkitti = SemanticKITTI(data_dir="/root/repos/polarseg-kitti/data/debug", data_split="train")
+    # train_dataset = cart_voxel_dataset(config,semkitti, data_split="train")
+    # dummy_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size = 2)
+
+    # for data_tuple in dummy_dataloader:
+    #     print(data_tuple)
+
+    # debugging polar_datamodule
+    data_module = PolarNetDataModule(config_path="/root/repos/polarseg-kitti/config/bence_debug.yaml")
+    data_module.setup()
+
+    dataloader = data_module.valid_dataloader()
+
+    for data in dataloader:
+        print(data)
 
 
 if __name__ == "__main__":

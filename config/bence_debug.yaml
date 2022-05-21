@@ -1,0 +1,10 @@
+data_dir: "/root/repos/polarseg-kitti/data/debug"
+model_type: 'traditional'
+grid_size: [480,360,32]
+max_vol: [50,50,1.5]
+min_vol: [-50,-50,-3]
+reflection: False
+augmentations:
+  fixed_vol: False
+  flip: False
+  rot: False
