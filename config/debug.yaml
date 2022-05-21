@@ -1,4 +1,4 @@
-data_dir: "/root/repos/polarseg-kitti/data/debug"
+data_dir: "data/debug"
 model_type: 'traditional'
 grid_size: [480,360,32]
 max_vol: [50,50,1.5]

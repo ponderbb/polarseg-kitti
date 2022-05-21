@@ -3,42 +3,45 @@ from typing import Optional
 import numpy as np
 import pytorch_lightning as pl
 import torch
-import yaml
+
 from numba import jit
 from torch.utils.data import DataLoader, Dataset
-from xxlimited import Str
+
 
 import src.misc.utils as utils
 
 
 class PolarNetDataModule(pl.LightningDataModule):
     def __init__(self, config_path: str):
+        super().__init__()
         self.config = utils.load_yaml(config_path)
         self.data_dir = self.config["data_dir"]
         self.model_type = self.config["model_type"]
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train")
-        self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
-        self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
+        if stage == "fit" or stage is None:
+            self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train")
+            self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
+        if stage == "test" or stage is None:
+            self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
 
         if self.model_type == "traditional":
-            self.voxelised_train = cart_voxel_dataset(self.config, self.semkitti_train, data_split="train")
-            self.voxelised_valid = cart_voxel_dataset(self.config, self.semkitti_valid, data_split="valid")
-            self.voxelised_test = cart_voxel_dataset(self.config, self.semkitti_test, data_split="test")
+            if stage == "fit" or stage is None:
+                self.voxelised_train = cart_voxel_dataset(self.config, self.semkitti_train, data_split="train")
+                self.voxelised_valid = cart_voxel_dataset(self.config, self.semkitti_valid, data_split="valid")
+            if stage == "test" or stage is None:
+                self.voxelised_test = cart_voxel_dataset(self.config, self.semkitti_test, data_split="test")
         elif self.model_type == "polar":
             raise NotImplementedError
 
     def train_dataloader(self):
-        loader_train = DataLoader(self.voxelised_train, batch_size=2)
-        return loader_train
+        return DataLoader(self.voxelised_train, collate_fn=collate_fn_BEV, batch_size=2)
 
     def valid_dataloader(self):
-        loader_valid = DataLoader(self.voxelised_valid, batch_size=2)
-        return loader_valid
+        return DataLoader(self.voxelised_valid, collate_fn=collate_fn_BEV, batch_size=2)
 
-    # def test_dataloader(self):
-    #     return
+    def test_dataloader(self):
+        return DataLoader(self.voxelised_test, collate_fn=collate_fn_BEV, batch_size=2)
 
 
 class SemanticKITTI(Dataset):
@@ -170,20 +173,19 @@ def label_voting(voxel_label: np.array, sorted_list: list):
     return voxel_label
 
 
+# FIXME: this shit is needed to be able to have multiple instances with different sizes
+def collate_fn_BEV(data):
+    label2stack = np.stack([d[0] for d in data])
+    grid_ind_stack = [d[1] for d in data]
+    point_label = [d[2] for d in data]
+    xyz = [d[3] for d in data]
+    return torch.from_numpy(label2stack), grid_ind_stack, point_label, xyz
+
+
 def main():
 
-    # # debugging the dataloader
-    # config = utils.load_yaml("/root/repos/polarseg-kitti/config/bence_debug.yaml")
-
-    # semkitti = SemanticKITTI(data_dir="/root/repos/polarseg-kitti/data/debug", data_split="train")
-    # train_dataset = cart_voxel_dataset(config,semkitti, data_split="train")
-    # dummy_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size = 2)
-
-    # for data_tuple in dummy_dataloader:
-    #     print(data_tuple)
-
     # debugging polar_datamodule
-    data_module = PolarNetDataModule(config_path="/root/repos/polarseg-kitti/config/bence_debug.yaml")
+    data_module = PolarNetDataModule(config_path="config/bence_debug.yaml")
     data_module.setup()
 
     dataloader = data_module.valid_dataloader()
