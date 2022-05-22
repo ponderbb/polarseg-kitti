@@ -1,10 +1,19 @@
+# dataloader configs
 data_dir: "data/debug"
 model_type: 'traditional'
 grid_size: [480,360,32]
 max_vol: [50,50,1.5]
 min_vol: [-50,-50,-3]
-reflection: False
+reflection: True
+
+# augmentations
 augmentations:
   fixed_vol: False
   flip: False
   rot: False
+
+#training configs
+model_save_path: "models/debug.pt"
+train_batch: 2
+valid_batch: 2
+lr_rate: 0.02

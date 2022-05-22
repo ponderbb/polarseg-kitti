@@ -1,21 +1,27 @@
+import typing
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
-
 from numba import jit
 from torch.utils.data import DataLoader, Dataset
-
 
 import src.misc.utils as utils
 
 
 class PolarNetDataModule(pl.LightningDataModule):
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str = "config/debug.yaml"):
         super().__init__()
-        self.config = utils.load_yaml(config_path)
-        self.data_dir = self.config["data_dir"]
+        if Path(config_path).exists():
+            self.config = utils.load_yaml(config_path)
+        else:
+            raise FileNotFoundError("Config file can not be found.")
+        if Path(self.config["data_dir"]).exists():
+            self.data_dir = self.config["data_dir"]
+        else:
+            raise FileNotFoundError("Data folder can not be found.")
         self.model_type = self.config["model_type"]
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -185,7 +191,7 @@ def collate_fn_BEV(data):
 def main():
 
     # debugging polar_datamodule
-    data_module = PolarNetDataModule(config_path="config/bence_debug.yaml")
+    data_module = PolarNetDataModule(config_path="config/debug.yaml")
     data_module.setup()
 
     dataloader = data_module.valid_dataloader()

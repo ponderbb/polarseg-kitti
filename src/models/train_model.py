@@ -18,36 +18,21 @@ from src.misc import utils
 
 
 class PolarNetTrainer(pl.LightningModule):
-    def __init__(
-        self,
-        data_path: typing.Union[str, Path] = "/data/",
-        model_path: typing.Union[str, Path] = "/data",
-        model_type: str = "traditional",
-        grid_size: list[int] = [480, 360, 32],
-        train_batch: int = 2,
-        valid_batch: int = 2,
-        lr_rate: float = 2e-2,
-    ) -> None:
+    def __init__(self, config_path: str = "config/debug.yaml") -> None:
         super().__init__()
         self.BEV_model = BEV_Unet()
         self.ptBEV_model = ptBEVnet()
-        self.data_path = data_path
-        self.model_path = model_path
-        self.model_type = model_type
-        self.grid_size = grid_size
-        self.train_batch = train_batch
-        self.valid_batch = valid_batch
-        self.lr_rate = lr_rate
+        if Path(config_path).exists():
+            self.config = utils.load_yaml(config_path)
+        else:
+            raise FileNotFoundError("Config file can not be found.")
+        self.model_path = self.config["model_save_path"]
+        self.train_batch = self.config["train_batch"]
+        self.valid_batch = self.config["valid_batch"]
+        self.lr_rate = self.config["lr_rate"]
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr_rate)
-
-    def train_dataloader(self) -> TRAIN_DATALOADERS:
-
-        return super().train_dataloader()
-
-    def val_dataloader(self) -> EVAL_DATALOADERS:
-        return super().val_dataloader()
 
     def training_step(self, batch, batch_idx):
         vox_label, grid_index, pt_label, pt_features = batch
