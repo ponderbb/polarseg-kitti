@@ -1,4 +1,3 @@
-import typing
 from pathlib import Path
 from typing import Optional
 
@@ -41,13 +40,28 @@ class PolarNetDataModule(pl.LightningDataModule):
             raise NotImplementedError
 
     def train_dataloader(self):
-        return DataLoader(self.voxelised_train, collate_fn=collate_fn_BEV, batch_size=2)
+        return DataLoader(
+            self.voxelised_train,
+            collate_fn=collate_fn_BEV,
+            batch_size=self.config["train_batch"],
+            num_workers=self.config["num_workers"],
+        )
 
-    def valid_dataloader(self):
-        return DataLoader(self.voxelised_valid, collate_fn=collate_fn_BEV, batch_size=2)
+    def val_dataloader(self):
+        return DataLoader(
+            self.voxelised_valid,
+            collate_fn=collate_fn_BEV,
+            batch_size=self.config["valid_batch"],
+            num_workers=self.config["num_workers"],
+        )
 
     def test_dataloader(self):
-        return DataLoader(self.voxelised_test, collate_fn=collate_fn_BEV, batch_size=2)
+        return DataLoader(
+            self.voxelised_test,
+            collate_fn=collate_fn_BEV,
+            batch_size=self.config["valid_batch"],
+            num_workers=self.config["num_workers"],
+        )
 
 
 class SemanticKITTI(Dataset):
@@ -133,7 +147,7 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
 
         # process the labels and vote for one per voxel
-        voxel_label = np.zeros(self.grid_size, dtype=np.uint8)
+        voxel_label = np.ones(self.grid_size, dtype=np.uint8) * 0  # FIXME: ignore label definition
         raw_point_label = np.concatenate([grid_index, labels.reshape(-1, 1)], axis=1)
         sorted_point_label = raw_point_label[
             np.lexsort((grid_index[:, 0], grid_index[:, 1], grid_index[:, 2])), :
