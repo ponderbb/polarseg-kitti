@@ -1,18 +1,22 @@
+import os
 import numpy as np
-from torch.utils import data
+import torch
+import random
+import time
 import numba as nb
+import yaml
+from torch.utils import data
 
-#TODO we have differnce view point !!! 
 
 class spherical_projection(data.Dataset):
-    def __init__(self, in_dataset, gird_size = [480, 2048, 28], H=64, W=2048, depths = 480, fov_up=3.0, fov_down=-25.0, ignore_label = 255,return_test = False,):
+    def __init__(self, in_dataset, grid_size = [64,2048,2], fov_up=3.0, fov_down=-25.0, ignore_label = 0,return_test = False,):
         self.point_cloud_dataset = in_dataset
         self.ignore_label = ignore_label
         self.return_test = return_test
-        self.proj_H = H
-        self.proj_W = W
-        self.proj_D = depths
-        self.grid_size = gird_size
+        self.proj_H = grid_size[0]
+        self.proj_W = grid_size[1]
+        self.proj_D = grid_size[2]
+        self.grid_size = grid_size
         self.proj_fov_up = fov_up
         self.proj_fov_down = fov_down
 
@@ -36,48 +40,72 @@ class spherical_projection(data.Dataset):
         fov_down = self.proj_fov_down / 180.0 * np.pi 
         fov = abs(fov_down) + abs(fov_up) 
 
-        depth = np.linalg.norm(xyz, 2, axis=1).reshape(point_num, 1)  
+        depth = np.linalg.norm(xyz, 2, axis=1)
         max_depth = np.floor(np.max(depth))
-        min_depth = 0
-
+        min_depth = np.floor(np.min(depth))
         x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
         
         yaw = -np.arctan2(y, x)
         pitch = np.arcsin(z / depth)
 
-        proj_w = (( 0.5 * (yaw / np.pi + 1.0) ) * self.proj_W ).reshape(point_num, 1)  
-        proj_h = (( 1.0 - (pitch + abs(fov_down)) / fov ) * self.proj_H ).reshape(point_num, 1)  
-        
-        proj_xy = np.concatenate([depth, proj_w], axis=1)
-        proj_xyz = np.concatenate([proj_xy, proj_h], axis=1)
+        proj_w = (( 0.5 * (yaw / np.pi + 1.0) ) * self.proj_W )
+        proj_h = (( 1.0 - (pitch + abs(fov_down)) / fov ) * self.proj_H )
+        depth = depth.reshape(point_num,1)
+
+        proj_x_ind = np.floor(proj_h)
+        proj_x_ind = np.minimum(self.proj_H - 1, proj_x_ind)
+        proj_x_ind = np.maximum(0, proj_x_ind).astype(np.int32).reshape(point_num,1)
 
         proj_y_ind = np.floor(proj_w)
         proj_y_ind= np.minimum(self.proj_W - 1, proj_y_ind)
-        proj_y_ind = np.maximum(0, proj_y_ind).astype(np.int32).reshape(point_num, 1)  
-
-        proj_z_ind = np.floor(proj_h)
-        proj_z_ind = np.minimum(self.proj_H - 1, proj_z_ind)
-        proj_z_ind = np.maximum(0, proj_z_ind).astype(np.int32).reshape(point_num, 1)  
+        proj_y_ind = np.maximum(0, proj_y_ind).astype(np.int32).reshape(point_num,1)
 
         crop_range = max_depth - min_depth        
         intervals = crop_range/(self.proj_D-1)
         proj_x_ind = (np.floor((np.clip(depth,min_depth,max_depth)-min_depth)/intervals)).astype(np.int).reshape(point_num, 1)
-        
-        grid_yz_ind = np.concatenate([proj_y_ind, proj_z_ind], axis=1)
-        grid_ind = np.concatenate([proj_x_ind, grid_yz_ind], axis=1)
 
-        processed_label = np.ones(self.grid_size, dtype = np.uint8)*self.ignore_label
+
+        '''
+        order = np.argsort(depth[:,0])[::-1]
+        indices = np.arange(depth.shape[0])
+
+        order_xyz = xyz[order]
+        order_proj_x_ind = proj_x_ind[order]
+        order_proj_y_ind = proj_y_ind[order]
+        order_labels = labels[order]
+        
+        range_xyz = np.full((self.proj_H, self.proj_W, 3), -1, dtype=np.float32)
+        range_xyz[order_proj_x_ind, order_proj_y_ind] = order_xyz
+        
+
+        range_idx = np.full((self.proj_H, self.proj_W), -1, dtype=np.int32)
+        range_idx[order_proj_x_ind, order_proj_y_ind] = indices
+
+        proj_mask = np.zeros((self.proj_H, self.proj_W),dtype=np.int32)
+        proj_mask = (range_idx > 0).astype(np.int32)
+        '''
+        
+        grid_xy_ind = np.concatenate(([proj_x_ind, proj_y_ind]), axis=1)
+        grid_z_ind = np.zeros(shape=(point_num,1))
+        grid_z_ind[depth>(max_depth-min_depth)/2] = 1
+        grid_ind = np.concatenate(([grid_xy_ind, grid_z_ind]), axis=1).astype(np.int)
+
+
+        voxel_position = np.zeros(self.grid_size,dtype = np.float32)
+        dim_array = np.ones(len(self.grid_size)+1,int)
+        dim_array[0] = -1 
+        voxel_position = np.indices(self.grid_size).reshape(dim_array)
+
+        processed_label = np.ones(self.grid_size,dtype = np.uint8)*self.ignore_label
         label_voxel_pair = np.concatenate([grid_ind,labels],axis = 1)
         label_voxel_pair = label_voxel_pair[np.lexsort((grid_ind[:,0],grid_ind[:,1],grid_ind[:,2])),:]
         processed_label = nb_process_label(np.copy(processed_label),label_voxel_pair)
-
-        data_tuple = (proj_xyz, processed_label)
         
-        voxel_x_centers = ((proj_x_ind.astype(np.float32) + 0.5)*intervals + min_depth)
-        voxel_yz_centers = (grid_yz_ind.astype(np.float32) + 0.5)
-        voxel_centers = np.concatenate([voxel_x_centers, voxel_yz_centers], axis=1)
-        return_xyz = proj_xyz - voxel_centers
-        return_xyz = np.concatenate((return_xyz,xyz),axis = 1)
+        data_tuple = (voxel_position , processed_label)
+
+        proj_xy = np.concatenate((proj_h.reshape(point_num,1),proj_w.reshape(point_num,1)),axis=1)
+        proj_xyz = np.concatenate((proj_xy, depth), axis=1)
+        return_xyz = np.concatenate((proj_xyz, xyz),axis=1)
         
         if len(data) == 2:
             return_fea = return_xyz
@@ -105,3 +133,11 @@ def nb_process_label(processed_label,sorted_label_voxel_pair):
         counter[sorted_label_voxel_pair[i,3]] += 1
     processed_label[cur_sear_ind[0],cur_sear_ind[1],cur_sear_ind[2]] = np.argmax(counter)
     return processed_label
+
+
+# load Semantic KITTI class info
+with open("semantic-kitti.yaml", 'r') as stream:
+    semkittiyaml = yaml.safe_load(stream)
+SemKITTI_label_name = dict()
+for i in sorted(list(semkittiyaml['learning_map'].keys()))[::-1]:
+    SemKITTI_label_name[semkittiyaml['learning_map'][i]] = semkittiyaml['labels'][i]
