@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from numba import jit
 
 
@@ -83,7 +82,7 @@ class ptBEVnet(nn.Module):
 
 @jit(nopython=True)
 def index_sort(sort_ind, xy_ind, pt_num):
-    unq = [sort_ind[0]]
+    unq = [sort_ind[0]]  # warnings about this slowing us down
     unq_cnt = []
     count = 0
     for ind in sort_ind:

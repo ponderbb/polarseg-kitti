@@ -58,27 +58,24 @@ class PolarNetModule(pl.LightningModule):
         # remap labels from 0->255
         vox_label = utils.move_labels_back(vox_label)
         pt_label = utils.move_labels_back(pt_label)
-        grid_index = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
+        grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = vox_label.type(torch.LongTensor).to(self.device)
 
         prediction = self.model(
-            pt_features, grid_index, circular_padding=False, device=self.device
+            pt_features, grid_index_tensor, circular_padding=False, device=self.device
         )  # TODO: what to do with the circular padding
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
-        for i in enumerate(grid_index):
+        prediction = torch.argmax(prediction, dim=1)
+        prediction = prediction.detach().cpu().numpy()
+        for i, __ in enumerate(grid_index):
             self.hist_list.append(
                 fast_hist_crop(
-                    prediction[
-                        i,
-                        grid_index[i][:, 0],
-                        grid_index[i][:, 1],
-                        grid_index[i][:, 2],
-                        pt_label[i],
-                        self.unique_classes[0],
-                    ]
+                    prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]],
+                    pt_label[i],
+                    self.unique_classes[0],
                 )
             )
         self.val_loss_list.append(combined_loss.detach().cpu().numpy())
@@ -107,23 +104,22 @@ class PolarNetModule(pl.LightningModule):
     def on_train_start(self) -> None:
         self.loss_list = []
 
-    def training_step(self, batch):
-
+    def training_step(self, batch, batch_idx):
         # try:
         vox_label, grid_index, pt_label, pt_features = batch
 
         # remap labels from 0->255
         vox_label = utils.move_labels_back(vox_label)
         pt_label = utils.move_labels_back(pt_label)
-        grid_index = [torch.from_numpy(i[:, :2]) for i in grid_index]
-        pt_features = [torch.from_numpy(i).type(torch.FloatTensor) for i in pt_features]
-        vox_label = vox_label.type(torch.LongTensor)
+        grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
+        pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
+        vox_label = vox_label.type(torch.LongTensor).to(self.device)
 
         prediction = self.model(
-            pt_features, grid_index, circular_padding=False
+            pt_features, grid_index_tensor, circular_padding=False, device=self.device
         )  # TODO: what to do with the circular padding
         cross_entropy_loss = self.loss_function(prediction, vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction, vox_label, ignore=255))
+        lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
         self.log("train_loss", combined_loss)
         self.loss_list.append(combined_loss.item())
@@ -155,7 +151,7 @@ def main(args):
 
     polar_datamodule = PolarNetDataModule(args.config)
     polar_model = PolarNetModule(args.config)
-    trainer = pl.Trainer(val_check_interval=100, accelerator="gpu", devices=1, auto_select_gpus=True)
+    trainer = pl.Trainer(val_check_interval=100, accelerator="gpu", devices=1)
 
     trainer.fit(model=polar_model, datamodule=polar_datamodule)
 

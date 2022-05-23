@@ -25,10 +25,10 @@ Finally, initialize the [pre-commit](https://pre-commit.com/) git hooks:
     ├── README.md          <- The top-level README for developers using this project.
     ├── data
     │   ├── debug          <- Data from third party sources.
-    |   ├── sequences      <- Read more about the data setup in the other README
+    |   └── sequences      <- Read more about the data setup in the other README
     |       ├── 00/           
-    |           │   ├── velodyne/
-    |           │   └── labels/
+    |       ├── velodyne/
+    |       └── labels/
     │
     ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
     │

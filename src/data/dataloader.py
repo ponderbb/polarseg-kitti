@@ -65,7 +65,7 @@ class PolarNetDataModule(pl.LightningDataModule):
 
 
 class SemanticKITTI(Dataset):
-    def __init__(self, data_dir: str, data_split="train") -> None:
+    def __init__(self, data_dir: str, data_split) -> None:
         self.data_dir = data_dir
         self.semkitti_yaml = utils.load_SemKITTI_yaml("semantic-kitti.yaml", label_name=False)
         self.data_split = data_split
@@ -97,14 +97,15 @@ class SemanticKITTI(Dataset):
         if self.data_split == "test":
             labels = np.zeros(shape=scan[:, 0].shape, dtype=int)
         else:
-            labels = np.fromfile(self.label_list[index], dtype=np.int32)
+            labels = np.fromfile(self.label_list[index], dtype=np.int32).reshape(-1, 1)
             labels = labels & 0xFFFF  # according to the semanticKITTI apilab
-            labels[list(self.semkitti_yaml["learning_map"].keys())] = list(
-                self.semkitti_yaml["learning_map"].values()
-            )  # remap from cross-entropy labels
+            # labels[list(self.semkitti_yaml["learning_map"].keys())] = list(
+            #     self.semkitti_yaml["learning_map"].values()
+            # )  # remap from cross-entropy labels
+            labels = np.vectorize(self.semkitti_yaml["learning_map"].__getitem__)(labels)
             labels = labels.reshape(-1, 1)
 
-        return (scan, labels)
+        return (scan, labels.astype(np.uint8))
 
 
 class cart_voxel_dataset(Dataset, PolarNetDataModule):
