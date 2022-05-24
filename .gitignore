@@ -78,6 +78,8 @@ target/
 # exclude data from source control by default
 /data/
 models/
+wandb/
+lightning_logs/
 
 # Mac OS-specific storage files
 .DS_Store

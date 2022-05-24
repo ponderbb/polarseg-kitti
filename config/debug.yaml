@@ -19,3 +19,9 @@ train_batch: 2
 valid_batch: 2
 num_workers: 4
 lr_rate: 0.02
+val_check_interval: 500
+
+# logging
+logging: True
+wandb_project: "polarseg-kitti"
+

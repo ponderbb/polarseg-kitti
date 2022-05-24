@@ -17,6 +17,16 @@ Finally, initialize the [pre-commit](https://pre-commit.com/) git hooks:
 
 `$ make lint`
 
+## Logging
+
+Logging is done through the [Weights & Biases](https://wandb.ai/) for which, more detailed documentation can be found [here](https://docs.wandb.ai/).
+
+After creating an account, for automatic log-in, copy your API key to the `.env` file in the root folder.
+
+`WANDB_API_KEY = $YOUR_API_KEY `
+
+> Note: You might need to create the project yourself.
+
 ## Project Organization
 ------------
 

@@ -6,8 +6,10 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from pytorch_lightning.loggers import WandbLogger
 
 import src.misc.utils as utils
+import wandb
 from src.data.dataloader import PolarNetDataModule
 from src.features.lovasz_losses import lovasz_softmax
 from src.features.my_BEV_Unet import BEV_Unet
@@ -27,10 +29,6 @@ class PolarNetModule(pl.LightningModule):
         # load label information from semantic-kitti.yaml (api specific config)
         self.unique_class_idx, self.unique_class_name = utils.load_unique_classes(self.config["semkitti_config"])
 
-        # # load models
-        # self.BEV_model = BEV_Unet(n_class=len(self.unique_classes[0]), n_height=self.config["grid_size"][2])
-        # self.model = ptBEVnet(self.device, self.BEV_model, self.config["grid_size"])
-
         # define variables based on config file
         self.model_path = self.config["model_save_path"]
         self.train_batch = self.config["train_batch"]
@@ -39,14 +37,17 @@ class PolarNetModule(pl.LightningModule):
         self.loss_function = torch.nn.CrossEntropyLoss(ignore_index=255)
 
     def setup(self, stage: Optional[str] = None) -> None:
-        # load models
+        # setup logging
 
-        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # # FIXME: trainer automatically does it but only after training loop start
+        if self.config["logging"]:
+            wandb.config.update(self.config)
+
+        # load models
         self.BEV_model = BEV_Unet(n_class=len(self.unique_class_idx), n_height=self.config["grid_size"][2])
         self.model = ptBEVnet(self.BEV_model, self.config["grid_size"])
         self.best_val_miou = 0  # FIXME: make sure this is the correct place of definition
         self.exceptions = 0
+        self.epoch = 0
 
     def configure_optimizers(self):
 
@@ -79,6 +80,8 @@ class PolarNetModule(pl.LightningModule):
                     self.unique_class_idx,
                 )
             )
+        if self.config["logging"]:
+            wandb.log({"val_loss": combined_loss})
         self.val_loss_list.append(combined_loss.detach().cpu().numpy())
 
     # executes at the beggining of every evaluation
@@ -90,12 +93,16 @@ class PolarNetModule(pl.LightningModule):
     def on_validation_end(self):
         iou = per_class_iu(sum(self.hist_list))
         for class_name, class_iou in zip(self.unique_class_name, iou):
+            if self.config["logging"]:
+                wandb.log({f"{class_name}": class_iou})
             print("%s : %.2f%%" % (class_name, class_iou * 100))
         val_miou = np.nanmean(iou) * 100
 
         # save model if performance is improved
         if self.best_val_miou < val_miou:
             best_val_miou = val_miou
+            if self.config["logging"]:
+                wandb.log({"best_val_miou": best_val_miou})
             torch.save(self.model.state_dict(), self.model_path)
 
         print("Current val miou is %.3f while the best val miou is %.3f" % (val_miou, best_val_miou))
@@ -105,8 +112,13 @@ class PolarNetModule(pl.LightningModule):
     def on_train_start(self) -> None:
         self.loss_list = []
 
+    def on_train_epoch_start(self) -> None:
+        self.epoch += 1
+        if self.config["logging"]:
+            wandb.log({"epoch": self.epoch})
+
     def training_step(self, batch, batch_idx):
-        # try:
+
         vox_label, grid_index, pt_label, pt_features = batch
 
         # remap labels from 0->255
@@ -122,13 +134,10 @@ class PolarNetModule(pl.LightningModule):
         cross_entropy_loss = self.loss_function(prediction, vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
-        self.log("train_loss", combined_loss)
+        if self.config["logging"]:
+            wandb.log({"train_loss": combined_loss})
         self.loss_list.append(combined_loss.item())
         return combined_loss
-        # except Exception as error:
-        #     if self.exceptions == 0:
-        #         print(error)
-        #     self.exceptions += 1
 
 
 def fast_hist(pred, label, n):
@@ -152,17 +161,24 @@ def main(args):
 
     polar_datamodule = PolarNetDataModule(args.config)
     polar_model = PolarNetModule(args.config)
-    trainer = pl.Trainer(val_check_interval=100, accelerator="gpu", devices=1)
+    if polar_model.config["logging"]:
+        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="all")
+    else:
+        logger = None
 
-    trainer.fit(model=polar_model, datamodule=polar_datamodule)
+    trainer = pl.Trainer(
+        val_check_interval=polar_model.config["val_check_interval"], accelerator="gpu", devices=1, logger=logger
+    )
+
+    trainer.fit(model=polar_model, datamodule=polar_datamodule, ckpt_path=polar_model.config["model_save_path"])
 
     # Trainer -> val_check_interval = 0.25
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", default="config/debug.yaml")
 
     args = parser.parse_args()
-    print(args)
     main(args)
