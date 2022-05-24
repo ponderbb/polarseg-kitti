@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch_scatter
 from numba import jit
 
 
@@ -43,15 +44,15 @@ class ptBEVnet(nn.Module):
             batch_pt_fea = torch.index_select(batch_pt_fea, dim=0, index=shuffled_ind)
             batch_xy_ind = torch.index_select(batch_xy_ind, dim=0, index=shuffled_ind)
 
-            # unq, unq_inv, unq_cnt= torch.unique(batch_xy_ind, return_inverse=True,return_counts=True, dim=0)
-            x_sort_ind = batch_xy_ind[batch_xy_ind[:, 1].sort()[1]]
-            sort_xy_ind = x_sort_ind[x_sort_ind[:, 0].sort()[1]]
-            unq, unq_inv, unq_cnt = index_sort(
-                sort_xy_ind.detach().cpu().numpy(), batch_xy_ind.detach().cpu().numpy(), pt_num
-            )
-            unq = torch.tensor(unq, dtype=torch.int64, device=device)
-            unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device=device)
-            unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device=device)
+            unq, unq_inv, unq_cnt = torch.unique(batch_xy_ind, return_inverse=True, return_counts=True, dim=0)
+            # x_sort_ind = batch_xy_ind[batch_xy_ind[:, 1].sort()[1]]
+            # sort_xy_ind = x_sort_ind[x_sort_ind[:, 0].sort()[1]]
+            # unq, unq_inv, unq_cnt = index_sort(
+            #     sort_xy_ind.detach().cpu().numpy(), batch_xy_ind.detach().cpu().numpy(), pt_num
+            # )
+            # unq = torch.tensor(unq, dtype=torch.int64, device=device)
+            # unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device=device)
+            # unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device=device)
 
             grp_ind = grp_range_torch(unq_cnt, device)[torch.argsort(torch.argsort(unq_inv))]
             remain_ind = grp_ind < self.max_pt
@@ -62,9 +63,9 @@ class ptBEVnet(nn.Module):
 
             pointnet_fea = self.Simplified_PointNet(batch_pt_fea)
 
-            # max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
-            unq_num = len(unq_cnt)
-            max_pointnet_fea = get_max_fea(unq_num, pointnet_fea, unq_inv)
+            max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
+            # unq_num = len(unq_cnt)
+            # max_pointnet_fea = get_max_fea(unq_num, pointnet_fea, unq_inv)
 
             nheight_pointnet_fea = self.fea_compression(max_pointnet_fea)
 

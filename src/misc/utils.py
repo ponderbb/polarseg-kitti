@@ -16,24 +16,38 @@ def getPath(dir):
             yield str(Path(os.path.join(root, f)))
 
 
-def load_SemKITTI_yaml(file, label_name=False):
-    # FIXME: rewrite or reference
+def load_unique_classes(semkitti_yaml):
 
-    with open(file, "r") as stream:
-        semkitti_dict = yaml.safe_load(stream)
+    semkitti_dict = load_yaml(semkitti_yaml)
 
-    # data tuple for unique label values and keys
-    if label_name:
-        unique_dict = dict()
-        for i in sorted(list(semkitti_dict["learning_map"].keys()))[::-1]:
-            unique_dict[semkitti_dict["learning_map"][i]] = semkitti_dict["labels"][i]
+    labels = np.fromiter(semkitti_dict["learning_map"].values(), dtype=np.int8)
+    class_idx = np.unique(labels)[:-1]  # shift by, one extra due to [unlabelled]
+    class_name = []
 
-        unique_keys = np.asarray(sorted(list(unique_dict.keys())))[1:] - 1
-        unique_labels = [unique_dict[x] for x in unique_keys + 1]
+    for i in class_idx:
+        class_name.append(semkitti_dict["labels"][semkitti_dict["learning_map_inv"][i + 1]])
 
-        return (unique_keys, unique_labels)
+    return class_idx, class_name
 
-    return semkitti_dict
+
+def ignore_class(semkitti_yaml):
+    """
+    based on semantickitti api, defines the "unlabelled instance (0)
+    """
+    semkitti_dict = load_yaml(semkitti_yaml)
+    for key, value in semkitti_dict["learning_ignore"].items():
+        if value:
+            return key
+
+
+def remap_labels(labels, semkitti_dict):
+    """
+    based on semantickitti api, remap labels to cross-entropy form
+    """
+    new_labels = np.zeros(len(labels), dtype=np.int8)
+    for idx, lab in enumerate(labels.squeeze()):
+        new_labels[idx] = semkitti_dict["learning_map"][lab]
+    return new_labels
 
 
 def load_yaml(file):

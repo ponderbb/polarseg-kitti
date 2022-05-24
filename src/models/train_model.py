@@ -25,7 +25,7 @@ class PolarNetModule(pl.LightningModule):
             raise FileNotFoundError("Config file can not be found.")
 
         # load label information from semantic-kitti.yaml (api specific config)
-        self.unique_classes = utils.load_SemKITTI_yaml(self.config["semkitti_config"], label_name=True)
+        self.unique_class_idx, self.unique_class_name = utils.load_unique_classes(self.config["semkitti_config"])
 
         # # load models
         # self.BEV_model = BEV_Unet(n_class=len(self.unique_classes[0]), n_height=self.config["grid_size"][2])
@@ -41,8 +41,9 @@ class PolarNetModule(pl.LightningModule):
     def setup(self, stage: Optional[str] = None) -> None:
         # load models
 
-        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # FIXME: trainer automatically does it but only after training loop start
-        self.BEV_model = BEV_Unet(n_class=len(self.unique_classes[0]), n_height=self.config["grid_size"][2])
+        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # # FIXME: trainer automatically does it but only after training loop start
+        self.BEV_model = BEV_Unet(n_class=len(self.unique_class_idx), n_height=self.config["grid_size"][2])
         self.model = ptBEVnet(self.BEV_model, self.config["grid_size"])
         self.best_val_miou = 0  # FIXME: make sure this is the correct place of definition
         self.exceptions = 0
@@ -75,7 +76,7 @@ class PolarNetModule(pl.LightningModule):
                 fast_hist_crop(
                     prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]],
                     pt_label[i],
-                    self.unique_classes[0],
+                    self.unique_class_idx,
                 )
             )
         self.val_loss_list.append(combined_loss.detach().cpu().numpy())
@@ -88,7 +89,7 @@ class PolarNetModule(pl.LightningModule):
     # executes the per class iou calculations at the end of each validation block
     def on_validation_end(self):
         iou = per_class_iu(sum(self.hist_list))
-        for class_name, class_iou in zip(self.unique_classes[1], iou):
+        for class_name, class_iou in zip(self.unique_class_name, iou):
             print("%s : %.2f%%" % (class_name, class_iou * 100))
         val_miou = np.nanmean(iou) * 100
 

@@ -67,7 +67,7 @@ class PolarNetDataModule(pl.LightningDataModule):
 class SemanticKITTI(Dataset):
     def __init__(self, data_dir: str, data_split) -> None:
         self.data_dir = data_dir
-        self.semkitti_yaml = utils.load_SemKITTI_yaml("semantic-kitti.yaml", label_name=False)
+        self.semkitti_yaml = utils.load_yaml("semantic-kitti.yaml")
         self.data_split = data_split
         self.scan_list = []
         self.label_list = []
@@ -98,14 +98,12 @@ class SemanticKITTI(Dataset):
             labels = np.zeros(shape=scan[:, 0].shape, dtype=int)
         else:
             labels = np.fromfile(self.label_list[index], dtype=np.int32).reshape(-1, 1)
-            labels = labels & 0xFFFF  # according to the semanticKITTI apilab
-            # labels[list(self.semkitti_yaml["learning_map"].keys())] = list(
-            #     self.semkitti_yaml["learning_map"].values()
-            # )  # remap from cross-entropy labels
-            labels = np.vectorize(self.semkitti_yaml["learning_map"].__getitem__)(labels)
-            labels = labels.reshape(-1, 1)
+            labels = labels & 0xFFFF  # cut upper half of the binary (source: semkittiAPI)
+            labels = utils.remap_labels(labels, self.semkitti_yaml).reshape(
+                -1, 1
+            )  # remap to cross-entropy labels (source: semkittiAPI)
 
-        return (scan, labels.astype(np.uint8))
+        return (scan, labels)
 
 
 class cart_voxel_dataset(Dataset, PolarNetDataModule):
@@ -116,6 +114,7 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         data_split: str,
     ):
         self.dataset = dataset
+        self.unlabeled_idx = utils.ignore_class(config["semkitti_config"])
         self.grid_size = np.asarray(config["grid_size"])
         self.max_vol = np.asarray(config["max_vol"], dtype=np.float32)
         self.min_vol = np.asarray(config["min_vol"], dtype=np.float32)
@@ -148,7 +147,7 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
 
         # process the labels and vote for one per voxel
-        voxel_label = np.ones(self.grid_size, dtype=np.uint8) * 0  # FIXME: ignore label definition
+        voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
         raw_point_label = np.concatenate([grid_index, labels.reshape(-1, 1)], axis=1)
         sorted_point_label = raw_point_label[
             np.lexsort((grid_index[:, 0], grid_index[:, 1], grid_index[:, 2])), :
@@ -179,7 +178,8 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
 @jit("u1[:,:,:](u1[:,:,:],i8[:,:])", nopython=True, cache=True, parallel=False)
 def label_voting(voxel_label: np.array, sorted_list: list):
 
-    # FIXME: way to similar to the original, figure out how to do it differenlty (only do a lookup array for existing labels or sth)
+    # FIXME: way to similar to the original,
+    # figure out how to do it differenlty (only do a lookup array for existing labels or sth)
     label_counter = np.zeros((256,), dtype=np.uint)
     label_counter[sorted_list[0, 3]] = 1
     compare_label_a = sorted_list[0, :3]
@@ -209,7 +209,7 @@ def main():
     data_module = PolarNetDataModule(config_path="config/debug.yaml")
     data_module.setup()
 
-    dataloader = data_module.valid_dataloader()
+    dataloader = data_module.val_dataloader()
 
     for data in dataloader:
         print(data)
