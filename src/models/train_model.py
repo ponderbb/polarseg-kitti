@@ -12,7 +12,6 @@ import src.misc.utils as utils
 import wandb
 from src.data.dataloader import PolarNetDataModule
 from src.features.lovasz_losses import lovasz_softmax
-from src.features.my_BEV_Unet import BEV_Unet
 from src.features.my_ptBEV import ptBEVnet
 
 
@@ -30,10 +29,6 @@ class PolarNetModule(pl.LightningModule):
         self.unique_class_idx, self.unique_class_name = utils.load_unique_classes(self.config["semkitti_config"])
 
         # define variables based on config file
-        self.model_path = self.config["model_save_path"]
-        self.train_batch = self.config["train_batch"]
-        self.valid_batch = self.config["valid_batch"]
-        self.lr_rate = self.config["lr_rate"]
         self.loss_function = torch.nn.CrossEntropyLoss(ignore_index=255)
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -43,15 +38,19 @@ class PolarNetModule(pl.LightningModule):
             wandb.config.update(self.config)
 
         # load models
-        self.BEV_model = BEV_Unet(n_class=len(self.unique_class_idx), n_height=self.config["grid_size"][2])
-        self.model = ptBEVnet(self.BEV_model, self.config["grid_size"])
+        self.model = ptBEVnet(
+            backbone=self.config["backbone"],
+            grid_size=self.config["grid_size"],
+            model_type=self.config["model_type"],
+            n_class=self.unique_class_idx,
+        )
         self.best_val_miou = 0  # FIXME: make sure this is the correct place of definition
         self.exceptions = 0
         self.epoch = 0
 
     def configure_optimizers(self):
 
-        return torch.optim.Adam(self.parameters(), lr=self.lr_rate)
+        return torch.optim.Adam(self.parameters(), lr=self.config["lr_rate"])
 
     def validation_step(self, batch, batch_idx):
 
@@ -64,9 +63,8 @@ class PolarNetModule(pl.LightningModule):
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = vox_label.type(torch.LongTensor).to(self.device)
 
-        prediction = self.model(
-            pt_features, grid_index_tensor, circular_padding=False, device=self.device
-        )  # TODO: what to do with the circular padding
+        prediction = self.model(pt_features, grid_index_tensor, circular_padding=False, device=self.device)
+        # TODO: what to do with the circular padding
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
@@ -97,13 +95,15 @@ class PolarNetModule(pl.LightningModule):
                 wandb.log({f"{class_name}": class_iou})
             print("%s : %.2f%%" % (class_name, class_iou * 100))
         val_miou = np.nanmean(iou) * 100
+        if self.config["logging"]:
+            wandb.log({"val_miou", val_miou})
 
         # save model if performance is improved
         if self.best_val_miou < val_miou:
             best_val_miou = val_miou
             if self.config["logging"]:
                 wandb.log({"best_val_miou": best_val_miou})
-            torch.save(self.model.state_dict(), self.model_path)
+            torch.save(self.model.state_dict(), self.config["model_save_path"])
 
         print("Current val miou is %.3f while the best val miou is %.3f" % (val_miou, best_val_miou))
         print("Current val loss is %.3f" % (np.mean(self.val_loss_list)))
@@ -128,9 +128,8 @@ class PolarNetModule(pl.LightningModule):
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = vox_label.type(torch.LongTensor).to(self.device)
 
-        prediction = self.model(
-            pt_features, grid_index_tensor, circular_padding=False, device=self.device
-        )  # TODO: what to do with the circular padding
+        prediction = self.model(pt_features, grid_index_tensor, circular_padding=False, device=self.device)
+        # TODO: what to do with the circular padding
         cross_entropy_loss = self.loss_function(prediction, vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
@@ -170,7 +169,7 @@ def main(args):
         val_check_interval=polar_model.config["val_check_interval"], accelerator="gpu", devices=1, logger=logger
     )
 
-    trainer.fit(model=polar_model, datamodule=polar_datamodule, ckpt_path=polar_model.config["model_save_path"])
+    trainer.fit(model=polar_model, datamodule=polar_datamodule)
 
     # Trainer -> val_check_interval = 0.25
 

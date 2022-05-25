@@ -3,21 +3,27 @@ import torch
 import torch.nn as nn
 # import torch.nn.functional as F
 import torch_scatter
-from my_BEV_Unet import BEV_Unet
-from my_FCN_resnet import FCN_ResNet
 from numba import jit
+
+from src.features.my_BEV_Unet import BEV_Unet
+from src.features.my_FCN_resnet import FCN_ResNet
 
 
 class ptBEVnet(nn.Module):
-    def __init__(
-        self, pytorch_device, backbone, grid_size, fea_dim=7, out_pt_fea_dim=512, max_pt_per_encode=256, n_height=32
-    ):
+    def __init__(self, backbone, grid_size, model_type, n_class, out_pt_fea_dim=512, max_pt_per_encode=256):
         super(ptBEVnet, self).__init__()
 
         self.max_pt = max_pt_per_encode
-        self.n_height = n_height
+        self.n_height = grid_size[2]  # FIXME: can we switch this to the grid size[2]?
         self.grid_size = grid_size
-        self.device = pytorch_device
+        self.n_class = len(n_class)
+
+        if model_type == "traditional":
+            fea_dim = 7
+        elif model_type == "polar":
+            fea_dim = 9
+        else:
+            AssertionError, "incorrect model_type"
 
         self.Simplified_PointNet = nn.Sequential(
             nn.BatchNorm1d(fea_dim),
@@ -35,12 +41,15 @@ class ptBEVnet(nn.Module):
 
         self.fea_compression = nn.Sequential(nn.Linear(out_pt_fea_dim, self.n_height), nn.ReLU())
 
+        assert backbone in ["UNet", "FCN"], "backbone name is incorrect"
+
         if backbone == "UNet":
-            self.backbone = BEV_Unet
+            self.backbone = BEV_Unet(n_class=self.n_class, n_height=self.n_height)
         elif backbone == "FCN":
+            raise NotImplementedError
             self.backbone = FCN_ResNet
 
-    def forward(self, pt_fea, xy_ind, circular_padding):
+    def forward(self, pt_fea, xy_ind, circular_padding, device):
         batch_size = len(pt_fea)
         batch_out_data_dim = [self.grid_size[0], self.grid_size[1], self.n_height]
         out = []
@@ -49,7 +58,7 @@ class ptBEVnet(nn.Module):
             batch_xy_ind = xy_ind[i]
             pt_num = len(pt_fea[i])
 
-            shuffled_ind = torch.randperm(pt_num, device=self.device)
+            shuffled_ind = torch.randperm(pt_num, device=device)
             batch_pt_fea = torch.index_select(batch_pt_fea, dim=0, index=shuffled_ind)
             batch_xy_ind = torch.index_select(batch_xy_ind, dim=0, index=shuffled_ind)
 
@@ -57,11 +66,11 @@ class ptBEVnet(nn.Module):
             # x_sort_ind = batch_xy_ind[batch_xy_ind[:,1].sort()[1]]
             # sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
             # unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),batch_xy_ind.detach().cpu().numpy(), pt_num)
-            # unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
-            # unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
-            # unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
+            # unq = torch.tensor(unq, dtype=torch.int64, device = device)
+            # unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = device)
+            # unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = device)
 
-            grp_ind = grp_range_torch(unq_cnt, 0)[torch.argsort(torch.argsort(unq_inv))]
+            grp_ind = grp_range_torch(unq_cnt, device)[torch.argsort(torch.argsort(unq_inv))]
             remain_ind = grp_ind < self.max_pt
 
             batch_pt_fea = batch_pt_fea[remain_ind, :]
@@ -73,7 +82,7 @@ class ptBEVnet(nn.Module):
 
             nheight_pointnet_fea = self.fea_compression(max_pointnet_fea)
 
-            batch_out_data = torch.zeros(batch_out_data_dim, dtype=torch.float32).to(self.device)
+            batch_out_data = torch.zeros(batch_out_data_dim, dtype=torch.float32).to(device)
             batch_out_data[unq[:, 0], unq[:, 1], :] = nheight_pointnet_fea
 
             out.append(batch_out_data)
@@ -107,7 +116,7 @@ def index_sort(sort_ind, xy_ind, pt_num):
         condition = []
         for j, boo in enumerate(boolen):
             tf = np.all(boo)
-            if tf == True:
+            if tf:
                 condition.append(j)
         for cond in condition:
             unq_inv[cond] = i
