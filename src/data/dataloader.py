@@ -113,15 +113,12 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         dataset,
         data_split: str,
     ):
+        self.config = config
         self.dataset = dataset
         self.unlabeled_idx = utils.ignore_class(config["semkitti_config"])
         self.grid_size = np.asarray(config["grid_size"])
         self.max_vol = np.asarray(config["max_vol"], dtype=np.float32)
         self.min_vol = np.asarray(config["min_vol"], dtype=np.float32)
-        self.fixed_vol = config["augmentations"]["fixed_vol"]
-        self.flip_aug = config["augmentations"]["flip"]
-        self.rot_aug = config["augmentations"]["rot"]
-        self.reflection = config["reflection"]
 
     def __len__(self):
         return len(self.dataset)
@@ -133,14 +130,15 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         xyz = data[:, :3]
         reflection = data[:, 3]
 
-        # TODO: augmentations
+        if self.config["augmentations"]["flip"]:
+            xyz = utils.random_flip(xyz)
 
         # fix volume space
         ROI = self.max_vol - self.min_vol
         intervals = ROI / (self.grid_size - 1)
 
         # calculate the grid indices
-        if self.fixed_vol:
+        if self.config["augmentations"]["fixed_vol"]:
             xyz = utils.clip(xyz, self.min_vol, self.max_vol)
 
         # calculate the grid index for each point
@@ -157,7 +155,7 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         # center points on voxel
         voxel_center = (grid_index.astype(float) + 0.5) * intervals + self.min_vol
         centered_xyz = xyz - voxel_center
-        pt_features = np.concatenate((centered_xyz, xyz), axis=1)
+        pt_features = np.concatenate((centered_xyz, xyz, reflection.reshape(-1, 1)), axis=1)
 
         """
         *complete data_tuple*
@@ -169,8 +167,8 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         """
         # TODO: version data_tuple based on arguments
 
-        if self.reflection:
-            pt_features = np.concatenate((pt_features, reflection.reshape(-1, 1)), axis=1)
+        # if self.config["reflection"]:
+        #     pt_features = np.concatenate((pt_features, reflection.reshape(-1, 1)), axis=1)
 
         return (voxel_label, grid_index, labels, pt_features)
 

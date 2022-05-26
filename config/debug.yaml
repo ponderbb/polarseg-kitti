@@ -9,9 +9,9 @@ reflection: True
 
 # augmentations
 augmentations:
-  fixed_vol: False
-  flip: False
-  rot: False
+  fixed_vol: True
+  flip: True
+  circular_padding: True
 
 #training configs
 model_save_path: "models/debug.pt"

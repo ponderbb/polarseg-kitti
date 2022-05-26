@@ -80,6 +80,8 @@ target/
 models/
 wandb/
 lightning_logs/
+config/
+!*config/debug.yaml
 
 # Mac OS-specific storage files
 .DS_Store

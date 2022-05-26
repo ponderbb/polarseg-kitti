@@ -10,7 +10,16 @@ from src.features.my_FCN_resnet import FCN_ResNet
 
 
 class ptBEVnet(nn.Module):
-    def __init__(self, backbone, grid_size, projection_type, n_class, out_pt_fea_dim=512, max_pt_per_encode=256):
+    def __init__(
+        self,
+        backbone,
+        grid_size,
+        projection_type,
+        n_class,
+        out_pt_fea_dim=512,
+        max_pt_per_encode=256,
+        circular_padding=False,
+    ):
         super(ptBEVnet, self).__init__()
 
         self.max_pt = max_pt_per_encode
@@ -44,7 +53,7 @@ class ptBEVnet(nn.Module):
         assert backbone in ["UNet", "FCN"], "backbone name is incorrect"
 
         if backbone == "UNet":
-            self.backbone = BEV_Unet(n_class=self.n_class, n_height=self.n_height)
+            self.backbone = BEV_Unet(n_class=self.n_class, n_height=self.n_height, circular_padding=circular_padding)
         elif backbone == "FCN":
             raise NotImplementedError
             self.backbone = FCN_ResNet

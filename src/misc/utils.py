@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 
 import numpy as np
@@ -61,3 +62,18 @@ def move_labels_back(label):
         return [i - 1 for i in label]
     else:
         return label - 1
+
+
+def random_flip(xyz):
+    choice = random.randint(0, 3)
+    if choice == 1:
+        # print("Flip along x-axis")
+        xyz[:, 0] = np.negative(xyz[:, 0])
+    elif choice == 2:
+        # print("Flip along y-axis")
+        xyz[:, 1] = np.negative(xyz[:, 1])
+    elif choice == 3:
+        # print("Flip along both axis")
+        xyz[:, 0] = np.negative(xyz[:, 0])
+        xyz[:, 1] = np.negative(xyz[:, 1])
+    return xyz

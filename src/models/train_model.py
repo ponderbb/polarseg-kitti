@@ -1,14 +1,8 @@
 import argparse
+import os
+import sys
 from pathlib import Path
 from typing import Optional
-import sys
-import os
-
-BASE_DIR = os.path.abspath(os.curdir)
-print(BASE_DIR)
-
-if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
 
 import numpy as np
 import pytorch_lightning as pl
@@ -16,9 +10,15 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 
-import src.misc.utils as utils
-
 import wandb
+
+BASE_DIR = os.path.abspath(os.curdir)
+print(BASE_DIR)
+
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
+import src.misc.utils as utils
 from src.data.dataloader import PolarNetDataModule
 from src.features.lovasz_losses import lovasz_softmax
 from src.features.my_ptBEV import ptBEVnet
@@ -52,6 +52,7 @@ class PolarNetModule(pl.LightningModule):
             grid_size=self.config["grid_size"],
             projection_type=self.config["projection_type"],
             n_class=self.unique_class_idx,
+            circular_padding=self.config["augmentations"]["circular_padding"],
         )
         self.best_val_miou = 0  # FIXME: make sure this is the correct place of definition
         self.exceptions = 0
@@ -72,7 +73,12 @@ class PolarNetModule(pl.LightningModule):
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = vox_label.type(torch.LongTensor).to(self.device)
 
-        prediction = self.model(pt_features, grid_index_tensor, circular_padding=False, device=self.device)
+        prediction = self.model(
+            pt_features,
+            grid_index_tensor,
+            circular_padding=self.config["augmentations"]["circular_padding"],
+            device=self.device,
+        )
         # TODO: what to do with the circular padding
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label, ignore=255)
@@ -137,7 +143,12 @@ class PolarNetModule(pl.LightningModule):
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = vox_label.type(torch.LongTensor).to(self.device)
 
-        prediction = self.model(pt_features, grid_index_tensor, circular_padding=False, device=self.device)
+        prediction = self.model(
+            pt_features,
+            grid_index_tensor,
+            circular_padding=self.config["augmentations"]["circular_padding"],
+            device=self.device,
+        )
         # TODO: what to do with the circular padding
         cross_entropy_loss = self.loss_function(prediction, vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
@@ -170,7 +181,7 @@ def main(args):
     polar_datamodule = PolarNetDataModule(args.config)
     polar_model = PolarNetModule(args.config)
     if polar_model.config["logging"]:
-        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="all", entity = "cs492_t13")
+        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="all", entity="cs492_t13")
     else:
         logger = None
 
