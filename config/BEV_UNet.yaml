@@ -1,6 +1,6 @@
 # dataloader configs
 data_dir: "../../../../data/polar"
-model_type: 'traditional'
+projection_type: 'traditional'
 semkitti_config: "semantic-kitti.yaml"
 grid_size: [480,360,32]
 max_vol: [50,50,1.5]
@@ -14,7 +14,7 @@ augmentations:
   rot: False
 
 #training configs
-model_save_path: "models/BEV_UNet.pt"
+model_save_path: "models/BEV_UNet_2.pt"
 backbone: "UNet"
 train_batch: 2
 valid_batch: 2
