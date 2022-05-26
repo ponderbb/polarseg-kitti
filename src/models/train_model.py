@@ -1,6 +1,14 @@
 import argparse
 from pathlib import Path
 from typing import Optional
+import sys
+import os
+
+BASE_DIR = os.path.abspath(os.curdir)
+print(BASE_DIR)
+
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
 import numpy as np
 import pytorch_lightning as pl
@@ -9,6 +17,7 @@ import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 
 import src.misc.utils as utils
+
 import wandb
 from src.data.dataloader import PolarNetDataModule
 from src.features.lovasz_losses import lovasz_softmax
@@ -161,7 +170,7 @@ def main(args):
     polar_datamodule = PolarNetDataModule(args.config)
     polar_model = PolarNetModule(args.config)
     if polar_model.config["logging"]:
-        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="all")
+        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="all", entity = "cs492_t13")
     else:
         logger = None
 
