@@ -10,20 +10,20 @@ from src.features.my_FCN_resnet import FCN_ResNet
 
 
 class ptBEVnet(nn.Module):
-    def __init__(self, backbone, grid_size, model_type, n_class, out_pt_fea_dim=512, max_pt_per_encode=256):
+    def __init__(self, backbone, grid_size, projection_type, n_class, out_pt_fea_dim=512, max_pt_per_encode=256):
         super(ptBEVnet, self).__init__()
 
         self.max_pt = max_pt_per_encode
-        self.n_height = grid_size[2]  # FIXME: can we switch this to the grid size[2]?
+        self.n_height = grid_size[2]
         self.grid_size = grid_size
         self.n_class = len(n_class)
 
-        if model_type == "traditional":
+        if projection_type == "traditional":
             fea_dim = 7
-        elif model_type == "polar":
+        elif projection_type == "polar":
             fea_dim = 9
         else:
-            AssertionError, "incorrect model_type"
+            AssertionError, "incorrect projection type"
 
         self.Simplified_PointNet = nn.Sequential(
             nn.BatchNorm1d(fea_dim),
@@ -65,7 +65,9 @@ class ptBEVnet(nn.Module):
             unq, unq_inv, unq_cnt = torch.unique(batch_xy_ind, return_inverse=True, return_counts=True, dim=0)
             # x_sort_ind = batch_xy_ind[batch_xy_ind[:,1].sort()[1]]
             # sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
-            # unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),batch_xy_ind.detach().cpu().numpy(), pt_num)
+            # unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),
+            #                                    batch_xy_ind.detach().cpu().numpy(),
+            #                                    pt_num)
             # unq = torch.tensor(unq, dtype=torch.int64, device = device)
             # unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = device)
             # unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = device)

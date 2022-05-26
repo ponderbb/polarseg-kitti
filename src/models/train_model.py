@@ -41,7 +41,7 @@ class PolarNetModule(pl.LightningModule):
         self.model = ptBEVnet(
             backbone=self.config["backbone"],
             grid_size=self.config["grid_size"],
-            model_type=self.config["model_type"],
+            projection_type=self.config["projection_type"],
             n_class=self.unique_class_idx,
         )
         self.best_val_miou = 0  # FIXME: make sure this is the correct place of definition
@@ -96,7 +96,7 @@ class PolarNetModule(pl.LightningModule):
             print("%s : %.2f%%" % (class_name, class_iou * 100))
         val_miou = np.nanmean(iou) * 100
         if self.config["logging"]:
-            wandb.log({"val_miou", val_miou})
+            wandb.log({"val_miou": val_miou})
 
         # save model if performance is improved
         if self.best_val_miou < val_miou:
@@ -166,7 +166,11 @@ def main(args):
         logger = None
 
     trainer = pl.Trainer(
-        val_check_interval=polar_model.config["val_check_interval"], accelerator="gpu", devices=1, logger=logger
+        val_check_interval=polar_model.config["val_check_interval"],
+        accelerator="gpu",
+        devices=1,
+        logger=logger,
+        default_root_dir="models/",
     )
 
     trainer.fit(model=polar_model, datamodule=polar_datamodule)

@@ -21,7 +21,7 @@ class PolarNetDataModule(pl.LightningDataModule):
             self.data_dir = self.config["data_dir"]
         else:
             raise FileNotFoundError("Data folder can not be found.")
-        self.model_type = self.config["model_type"]
+        self.projection_type = self.config["projection_type"]
 
     def setup(self, stage: Optional[str] = None) -> None:
         if stage == "fit" or stage is None:
@@ -30,13 +30,13 @@ class PolarNetDataModule(pl.LightningDataModule):
         if stage == "test" or stage is None:
             self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
 
-        if self.model_type == "traditional":
+        if self.projection_type == "traditional":
             if stage == "fit" or stage is None:
                 self.voxelised_train = cart_voxel_dataset(self.config, self.semkitti_train, data_split="train")
                 self.voxelised_valid = cart_voxel_dataset(self.config, self.semkitti_valid, data_split="valid")
             if stage == "test" or stage is None:
                 self.voxelised_test = cart_voxel_dataset(self.config, self.semkitti_test, data_split="test")
-        elif self.model_type == "polar":
+        elif self.projection_type == "polar":
             raise NotImplementedError
 
     def train_dataloader(self):
