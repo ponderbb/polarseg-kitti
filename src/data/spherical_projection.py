@@ -9,7 +9,7 @@ from torch.utils import data
 
 
 class spherical_projection(data.Dataset):
-    def __init__(self, in_dataset, grid_size = [64,2048,2], fov_up=3.0, fov_down=-25.0, ignore_label = 0,return_test = False,):
+    def __init__(self, in_dataset, grid_size = [64,2048,32], fov_up=3.0, fov_down=-25.0, ignore_label = 0,return_test = False,):
         self.point_cloud_dataset = in_dataset
         self.ignore_label = ignore_label
         self.return_test = return_test
@@ -60,34 +60,10 @@ class spherical_projection(data.Dataset):
         proj_y_ind= np.minimum(self.proj_W - 1, proj_y_ind)
         proj_y_ind = np.maximum(0, proj_y_ind).astype(np.int32).reshape(point_num,1)
 
-        crop_range = max_depth - min_depth        
-        intervals = crop_range/(self.proj_D-1)
-        proj_x_ind = (np.floor((np.clip(depth,min_depth,max_depth)-min_depth)/intervals)).astype(np.int).reshape(point_num, 1)
-
-
-        '''
-        order = np.argsort(depth[:,0])[::-1]
-        indices = np.arange(depth.shape[0])
-
-        order_xyz = xyz[order]
-        order_proj_x_ind = proj_x_ind[order]
-        order_proj_y_ind = proj_y_ind[order]
-        order_labels = labels[order]
-        
-        range_xyz = np.full((self.proj_H, self.proj_W, 3), -1, dtype=np.float32)
-        range_xyz[order_proj_x_ind, order_proj_y_ind] = order_xyz
-        
-
-        range_idx = np.full((self.proj_H, self.proj_W), -1, dtype=np.int32)
-        range_idx[order_proj_x_ind, order_proj_y_ind] = indices
-
-        proj_mask = np.zeros((self.proj_H, self.proj_W),dtype=np.int32)
-        proj_mask = (range_idx > 0).astype(np.int32)
-        '''
-        
         grid_xy_ind = np.concatenate(([proj_x_ind, proj_y_ind]), axis=1)
         grid_z_ind = np.zeros(shape=(point_num,1))
-        grid_z_ind[depth>(max_depth-min_depth)/2] = 1
+        for i in range(1, self.proj_D):
+            grid_z_ind[depth>((max_depth-min_depth)/self.proj_D)*i] = i+1
         grid_ind = np.concatenate(([grid_xy_ind, grid_z_ind]), axis=1).astype(np.int)
 
 
