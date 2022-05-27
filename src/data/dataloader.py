@@ -3,7 +3,6 @@ from typing import Optional
 
 import numpy as np
 import pytorch_lightning as pl
-import torch
 from numba import jit
 from torch.utils.data import DataLoader, Dataset
 
@@ -42,7 +41,7 @@ class PolarNetDataModule(pl.LightningDataModule):
     def train_dataloader(self):
         return DataLoader(
             self.voxelised_train,
-            collate_fn=collate_fn_BEV,
+            collate_fn=collate_fn,
             batch_size=self.config["train_batch"],
             num_workers=self.config["num_workers"],
         )
@@ -50,7 +49,7 @@ class PolarNetDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.voxelised_valid,
-            collate_fn=collate_fn_BEV,
+            collate_fn=collate_fn,
             batch_size=self.config["valid_batch"],
             num_workers=self.config["num_workers"],
         )
@@ -58,7 +57,7 @@ class PolarNetDataModule(pl.LightningDataModule):
     def test_dataloader(self):
         return DataLoader(
             self.voxelised_test,
-            collate_fn=collate_fn_BEV,
+            collate_fn=collate_fn,
             batch_size=self.config["valid_batch"],
             num_workers=self.config["num_workers"],
         )
@@ -142,7 +141,7 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
             xyz = utils.clip(xyz, self.min_vol, self.max_vol)
 
         # calculate the grid index for each point
-        grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)  # NOTE: cite this
+        grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)
 
         # process the labels and vote for one per voxel
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
@@ -165,10 +164,6 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         labels: individual point's label
         pt_features: [centered xyz, xyz, reflection]
         """
-        # TODO: version data_tuple based on arguments
-
-        # if self.config["reflection"]:
-        #     pt_features = np.concatenate((pt_features, reflection.reshape(-1, 1)), axis=1)
 
         return (voxel_label, grid_index, labels, pt_features)
 
@@ -193,12 +188,25 @@ def label_voting(voxel_label: np.array, sorted_list: list):
 
 
 # FIXME: this shit is needed to be able to have multiple instances with different sizes
-def collate_fn_BEV(data):
-    label2stack = np.stack([d[0] for d in data])
-    grid_ind_stack = [d[1] for d in data]
-    point_label = [d[2] for d in data]
-    xyz = [d[3] for d in data]
-    return torch.from_numpy(label2stack), grid_ind_stack, point_label, xyz
+def collate_fn(batch, test=False):
+    label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
+    for i in batch:
+        label.append(i[0])
+        grid_index.append(i[1])
+        pt_label.append(i[2])
+        pt_feature.append(i[3])
+        if test:
+            index.append(i[4])
+
+    collated = (np.stack(label), grid_index, pt_label, pt_feature)
+
+    if test:
+        collated += index
+
+    return collated
+
+
+# def collate_fn(batch):
 
 
 def main():

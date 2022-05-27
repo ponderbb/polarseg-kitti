@@ -54,7 +54,7 @@ class PolarNetModule(pl.LightningModule):
             n_class=self.unique_class_idx,
             circular_padding=self.config["augmentations"]["circular_padding"],
         )
-        self.best_val_miou = 0  # FIXME: make sure this is the correct place of definition
+        self.best_val_miou = 0
         self.exceptions = 0
         self.epoch = 0
 
@@ -71,7 +71,7 @@ class PolarNetModule(pl.LightningModule):
         pt_label = utils.move_labels_back(pt_label)
         grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
-        vox_label = vox_label.type(torch.LongTensor).to(self.device)
+        vox_label = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
         prediction = self.model(
             pt_features,
@@ -79,9 +79,9 @@ class PolarNetModule(pl.LightningModule):
             circular_padding=self.config["augmentations"]["circular_padding"],
             device=self.device,
         )
-        # TODO: what to do with the circular padding
+
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label, ignore=255)
+        lovasz_loss = lovasz_softmax(F.softmax(prediction, dim=1).detach(), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
         prediction = torch.argmax(prediction, dim=1)
         prediction = prediction.detach().cpu().numpy()
@@ -110,18 +110,16 @@ class PolarNetModule(pl.LightningModule):
                 wandb.log({f"{class_name}": class_iou})
             print("%s : %.2f%%" % (class_name, class_iou * 100))
         val_miou = np.nanmean(iou) * 100
-        if self.config["logging"]:
-            wandb.log({"val_miou": val_miou})
 
         # save model if performance is improved
         if self.best_val_miou < val_miou:
-            best_val_miou = val_miou
-            if self.config["logging"]:
-                wandb.log({"best_val_miou": best_val_miou})
+            self.best_val_miou = val_miou
             torch.save(self.model.state_dict(), self.config["model_save_path"])
 
-        print("Current val miou is %.3f while the best val miou is %.3f" % (val_miou, best_val_miou))
-        print("Current val loss is %.3f" % (np.mean(self.val_loss_list)))
+        if self.config["logging"]:
+            wandb.log({"val_miou": val_miou, "best_val_miou": self.best_val_miou})
+
+        print("Current val miou is %.3f while the best val miou is %.3f" % (val_miou, self.best_val_miou))
 
     # initializations before new training
     def on_train_start(self) -> None:
@@ -141,7 +139,7 @@ class PolarNetModule(pl.LightningModule):
         pt_label = utils.move_labels_back(pt_label)
         grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
-        vox_label = vox_label.type(torch.LongTensor).to(self.device)
+        vox_label = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
         prediction = self.model(
             pt_features,
@@ -149,26 +147,30 @@ class PolarNetModule(pl.LightningModule):
             circular_padding=self.config["augmentations"]["circular_padding"],
             device=self.device,
         )
-        # TODO: what to do with the circular padding
+
         cross_entropy_loss = self.loss_function(prediction, vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
+        lovasz_loss = lovasz_softmax(F.softmax(prediction, dim=1), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
+
         if self.config["logging"]:
             wandb.log({"train_loss": combined_loss})
         self.loss_list.append(combined_loss.item())
         return combined_loss
 
 
+# TODO: cite or replace
 def fast_hist(pred, label, n):
     k = (label >= 0) & (label < n)
     bin_count = np.bincount(n * label[k].astype(int) + pred[k], minlength=n**2)
     return bin_count[: n**2].reshape(n, n)
 
 
+# TODO: cite or replace
 def per_class_iu(hist):
     return np.diag(hist) / (hist.sum(1) + hist.sum(0) - np.diag(hist))
 
 
+# TODO: cite or replace
 def fast_hist_crop(output, target, unique_label):
     hist = fast_hist(output.flatten(), target.flatten(), np.max(unique_label) + 1)
     hist = hist[unique_label, :]
@@ -181,7 +183,7 @@ def main(args):
     polar_datamodule = PolarNetDataModule(args.config)
     polar_model = PolarNetModule(args.config)
     if polar_model.config["logging"]:
-        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="all", entity="cs492_t13")
+        logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="True", entity="cs492_t13")
     else:
         logger = None
 
@@ -194,8 +196,6 @@ def main(args):
     )
 
     trainer.fit(model=polar_model, datamodule=polar_datamodule)
-
-    # Trainer -> val_check_interval = 0.25
 
 
 if __name__ == "__main__":

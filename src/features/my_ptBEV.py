@@ -72,6 +72,8 @@ class ptBEVnet(nn.Module):
             batch_xy_ind = torch.index_select(batch_xy_ind, dim=0, index=shuffled_ind)
 
             unq, unq_inv, unq_cnt = torch.unique(batch_xy_ind, return_inverse=True, return_counts=True, dim=0)
+
+            ## Own implementation of torch.unique() function TODO: fix speed problem
             # x_sort_ind = batch_xy_ind[batch_xy_ind[:,1].sort()[1]]
             # sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
             # unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),
@@ -134,6 +136,7 @@ def index_sort(sort_ind, xy_ind, pt_num):
     return unq, unq_inv, unq_cnt
 
 
+# TODO: cite or remove
 def grp_range_torch(a, dev):
     idx = torch.cumsum(a, 0)
     id_arr = torch.ones(idx[-1], dtype=torch.int64, device=dev)
