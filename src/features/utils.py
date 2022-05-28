@@ -4,57 +4,79 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class CBR(nn.Module):
-    def __init__(self, in_ch, out_ch, circular_padding, kernel_size, padding_size):
+    def __init__(self, in_ch, out_ch, circular_padding, filter_size = 3, padding_size = 1, bias = True, mode="CBR"):
         super(CBR, self).__init__()
+        
+        self.circular_padding = circular_padding
+        self.filter_size = filter_size
         self.padding_size = padding_size
-
-        if circular_padding :
-            padding_version = (self.padding_size,0)
+        self.bias = bias
+        self.mode = mode
+        if self.circular_padding :
+            self.padding_version = (self.padding_size,0)
         else : 
-            padding_version = self.padding_size
+            self.padding_version = self.padding_size
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, kernel_size, padding=padding_version),
-            nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(inplace=True)
-        )
+        if self.mode == "CBR":
+            self.conv = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, kernel_size=self.filter_size, padding = self.padding_version, bias = self.bias),
+                nn.BatchNorm2d(out_ch),
+                nn.LeakyReLU(inplace=True)
+            )
+        elif self.mode == "CRB":
+            self.conv = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, kernel_size=self.filter_size, padding = self.padding_version, bias = self.bias),
+                nn.LeakyReLU(inplace=True),
+                nn.BatchNorm2d(out_ch),
+            )
 
-    def forward(self, x, circular_padding):
-        if circular_padding : 
-            x = F.pad(x,(self.padding_size,self.padding_size,0,0), mode = 'circular')
+    def forward(self, x):
+        if self.circular_padding == True: 
+            x = F.pad(x,(1,1,0,0), mode = 'circular')
             x = self.conv(x)
         else : 
             x = self.conv(x)
         return x
-
-
-class down_CBR(nn.Module):
-    def __init__(self, in_ch, out_ch, circular_padding, kernel_size, padding_size):
-        super(down_CBR, self).__init__()
-        self.pooling = nn.MaxPool2d(2)
-        self.conv = CBR(in_ch, out_ch, circular_padding, kernel_size, padding_size)
-      
-    def forward(self, x, circular_padding):
-        x = self.pooling(x)
-        x = self.conv(x, circular_padding)
-        return x
-
 
 class up_CBR(nn.Module):
-    def __init__(self, in_ch, out_ch, circular_padding, kernel_size, padding_size):
+    def __init__(self, in_ch, out_ch, circular_padding, filter_size = 3, padding_size=1, bias = True, mode = "CBR"):
         super(up_CBR, self).__init__()
-        self.up = self.up = nn.ConvTranspose2d(in_ch//2, in_ch//2, 2, stride=2, groups = in_ch//2)
-        self.conv = CBR(in_ch, out_ch, circular_padding, kernel_size, padding_size)
         
-    def forward(self, x1, x2, circular_padding):
+        self.circular_padding = circular_padding
+        self.filter_size = filter_size
+        self.padding_size = padding_size
+        self.bias = bias
+        self.mode = mode
+
+        self.up = nn.ConvTranspose2d(in_ch//2, in_ch//2, 2, stride=2, groups = in_ch//2)
+        self.conv = CBR(in_ch, out_ch, self.circular_padding, self.filter_size, self.padding_size, self.bias, self.mode)
+
+    def forward(self, x1, x2):
         x1 = self.up(x1)
-        
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
+
         x1 = F.pad(x1, (diffX // 2, diffX - diffX//2, diffY // 2, diffY - diffY//2))
 
         x = torch.cat([x2, x1], dim=1)
-        x = self.conv(x, circular_padding)
+        x = self.conv(x)
+        return x
+
+class down_CBR(nn.Module):
+    def __init__(self, in_ch, out_ch, circular_padding, filter_size=3, padding_size=1, bias=True):
+        super(down_CBR, self).__init__()
+
+        self.circular_padding = circular_padding
+        self.filter_size = filter_size
+        self.padding_size = padding_size
+        self.bias = bias
+
+        self.pooling = nn.MaxPool2d(2)
+        self.conv = CBR(in_ch, out_ch, self.circular_padding, self.filter_size, self.padding_size, self.bias)
+      
+    def forward(self, x):
+        x = self.pooling(x)
+        x = self.conv(x)
         return x
 
 class BlockDrop(nn.Module):
@@ -90,31 +112,34 @@ def compute_block_mask(mask, block_size):
 
 class BottleNeck(nn.Module):
     expansion = 4
-    def __init__(self, in_channels, out_channels, circular_padding, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, circular_padding=False):
         super().__init__()
+
         self.circular_padding = circular_padding
-        self.residual_function = nn.Sequential(
+        self.stride = stride
+        
+        self.conv0 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels * BottleNeck.expansion, kernel_size=1, stride=1, bias=False),
-            nn.BatchNorm2d(out_channels * BottleNeck.expansion),
+            nn.ReLU()
         )
 
-        self.shortcut = nn.Sequential()
+        self.conv1 = CBR(out_channels, out_channels, self.circular_padding, filter_size = 3, padding_size = 1, bias = False)
+        
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(out_channels, out_channels * BottleNeck.expansion, kernel_size=1, stride=1, bias=False),
+            nn.BatchNorm2d(out_channels * BottleNeck.expansion)
+        )
 
-        self.relu = nn.ReLU()
-
-        if stride != 1 or in_channels != out_channels * BottleNeck.expansion:
+        if self.stride != 1 or in_channels != out_channels * BottleNeck.expansion:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels*BottleNeck.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.Conv2d(in_channels, out_channels*BottleNeck.expansion, kernel_size=1, stride=self.stride, bias=False),
                 nn.BatchNorm2d(out_channels*BottleNeck.expansion)
             )
+        else :
+            self.shortcut = nn.Sequential()
             
     def forward(self, x):
-        x = self.residual_function(x) + self.shortcut(x)
-        x = self.relu(x)
+        x = nn.ReLU(self.conv2(self.conv1(self.conv0(x))) + self.shortcut(x))
         return x
+
