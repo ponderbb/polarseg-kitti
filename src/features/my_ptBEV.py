@@ -1,12 +1,13 @@
 import numpy as np
 import torch
 import torch.nn as nn
-# import torch.nn.functional as F
+import torch.nn.functional as F
 import torch_scatter
 from numba import jit
 
 from src.features.my_BEV_Unet import BEV_Unet
 from src.features.my_FCN_resnet import FCN_ResNet
+from src.features.my_DL_resnet import DeepLab_ResNet
 
 
 class ptBEVnet(nn.Module):
@@ -26,6 +27,7 @@ class ptBEVnet(nn.Module):
         self.n_height = grid_size[2]
         self.grid_size = grid_size
         self.n_class = len(n_class)
+        self.circular_padding = circular_padding
 
         if projection_type == "traditional":
             fea_dim = 7
@@ -50,19 +52,22 @@ class ptBEVnet(nn.Module):
 
         self.fea_compression = nn.Sequential(nn.Linear(out_pt_fea_dim, self.n_height), nn.ReLU())
 
-        assert backbone in ["UNet", "FCN"], "backbone name is incorrect"
+        assert backbone in ["UNet", "FCN", "DL"], "backbone name is incorrect"
 
         if backbone == "UNet":
-            self.backbone = BEV_Unet(n_class=self.n_class, n_height=self.n_height, circular_padding=circular_padding)
+            self.backbone = BEV_Unet(self.n_class, self.n_height, self.circular_padding)
         elif backbone == "FCN":
-            raise NotImplementedError
-            self.backbone = FCN_ResNet
+            self.backbone = FCN_ResNet([3, 4, 6, 3], self.n_class, self.n_height, self.circular_padding)
+        elif backbone == "DL":
+            self.backbone = DeepLab_ResNet([3, 4, 23, 3], self.n_class, self.n_height, self.circular_padding)
 
-    def forward(self, pt_fea, xy_ind, circular_padding, device):
+    def forward(self, pt_fea, xy_ind, device):
+
         batch_size = len(pt_fea)
         batch_out_data_dim = [self.grid_size[0], self.grid_size[1], self.n_height]
         out = []
         for i in range(batch_size):
+            
             batch_pt_fea = pt_fea[i]
             batch_xy_ind = xy_ind[i]
             pt_num = len(pt_fea[i])
@@ -103,7 +108,7 @@ class ptBEVnet(nn.Module):
         to_cnn = torch.stack(out)
         to_cnn = to_cnn.permute(0, 3, 1, 2)
 
-        unet_fea = self.backbone(to_cnn, circular_padding)
+        unet_fea = self.backbone(to_cnn)        
 
         return unet_fea
 
