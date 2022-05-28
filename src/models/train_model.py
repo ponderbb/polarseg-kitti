@@ -76,12 +76,11 @@ class PolarNetModule(pl.LightningModule):
         prediction = self.model(
             pt_features,
             grid_index_tensor,
-            circular_padding=self.config["augmentations"]["circular_padding"],
             device=self.device,
         )
 
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction, dim=1).detach(), vox_label, ignore=255)
+        lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
         prediction = torch.argmax(prediction, dim=1)
         prediction = prediction.detach().cpu().numpy()
@@ -144,12 +143,11 @@ class PolarNetModule(pl.LightningModule):
         prediction = self.model(
             pt_features,
             grid_index_tensor,
-            circular_padding=self.config["augmentations"]["circular_padding"],
             device=self.device,
         )
 
         cross_entropy_loss = self.loss_function(prediction, vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction, dim=1), vox_label, ignore=255)
+        lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
 
         if self.config["logging"]:
