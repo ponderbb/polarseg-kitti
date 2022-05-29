@@ -15,9 +15,9 @@ class BEV_Unet(nn.Module):
         self.backbone = UNet(n_class*n_height,n_height,circular_padding)
 
     def forward(self, x):
-        class_per_voxel_dim = [x.size()[0], x.size()[1], x.size()[2], self.n_height, self.n_class]
         x = self.backbone(x)
         x = x.permute(0,2,3,1)
+        class_per_voxel_dim = [x.size()[0], x.size()[1], x.size()[2], self.n_height, self.n_class]
         x = x.view(class_per_voxel_dim).permute(0,4,1,2,3)
         return x
     
