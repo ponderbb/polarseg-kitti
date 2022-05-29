@@ -12,15 +12,13 @@ class BEV_Unet(nn.Module):
         super(BEV_Unet, self).__init__()
         self.n_class = n_class
         self.n_height = n_height
-        self.network = UNet(n_class*n_height,n_height,circular_padding)
+        self.backbone = UNet(n_class*n_height,n_height,circular_padding)
 
     def forward(self, x):
-        x = self.network(x)
-        
+        class_per_voxel_dim = [x.size()[0], x.size()[1], x.size()[2], self.n_height, self.n_class]
+        x = self.backbone(x)
         x = x.permute(0,2,3,1)
-        new_shape = list(x.size())[:3] + [self.n_height,self.n_class]
-        x = x.view(new_shape)
-        x = x.permute(0,4,1,2,3)
+        x = x.view(class_per_voxel_dim).permute(0,4,1,2,3)
         return x
     
 class UNet(nn.Module):
