@@ -25,7 +25,7 @@ from src.features.my_ptBEV import ptBEVnet
 
 
 class PolarNetModule(pl.LightningModule):
-    def __init__(self, config_name: str = "debug.yaml") -> None:
+    def __init__(self, config_name: str = "traditional.yaml") -> None:
         super().__init__()
 
         # check if config path exists
@@ -48,7 +48,7 @@ class PolarNetModule(pl.LightningModule):
 
         # load models
         self.model = ptBEVnet(
-            backbone=self.config["backbone"],
+            backbone_name=self.config["backbone"],
             grid_size=self.config["grid_size"],
             projection_type=self.config["projection_type"],
             n_class=self.unique_class_idx,
@@ -77,6 +77,7 @@ class PolarNetModule(pl.LightningModule):
         prediction = self.model(
             pt_features,
             grid_index_tensor,
+            self.device
         )
 
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
@@ -143,6 +144,7 @@ class PolarNetModule(pl.LightningModule):
         prediction = self.model(
             pt_features,
             grid_index_tensor,
+            self.device
         )
 
         cross_entropy_loss = self.loss_function(prediction, vox_label)
@@ -198,7 +200,7 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", default="debug.yaml")
+    parser.add_argument("-c", "--config", default="traditional.yaml")
 
     args = parser.parse_args()
     main(args)
