@@ -77,3 +77,11 @@ def random_flip(xyz):
         xyz[:, 0] = np.negative(xyz[:, 0])
         xyz[:, 1] = np.negative(xyz[:, 1])
     return xyz
+
+
+def random_rot(xyz):
+    angle = np.random.randint(0, 360)
+    x = (xyz[:, 0] * np.cos(np.deg2rad(angle)) - xyz[:, 1] * np.sin(np.deg2rad(angle))).reshape(-1, 1)
+    y = (xyz[:, 1] * np.cos(np.deg2rad(angle)) + xyz[:, 0] * np.sin(np.deg2rad(angle))).reshape(-1, 1)
+    z = xyz[:, 2].reshape(-1, 1)
+    return np.concatenate((x, y, z), axis=1)

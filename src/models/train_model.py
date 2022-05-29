@@ -25,12 +25,12 @@ from src.features.my_ptBEV import ptBEVnet
 
 
 class PolarNetModule(pl.LightningModule):
-    def __init__(self, config_path: str = "config/debug.yaml") -> None:
+    def __init__(self, config_name: str = "debug.yaml") -> None:
         super().__init__()
 
         # check if config path exists
-        if Path(config_path).exists():
-            self.config = utils.load_yaml(config_path)
+        if Path("config/" + config_name).exists():
+            self.config = utils.load_yaml("config/" + config_name)
         else:
             raise FileNotFoundError("Config file can not be found.")
 
@@ -199,7 +199,7 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", default="config/debug.yaml")
+    parser.add_argument("-c", "--config", default="debug.yaml")
 
     args = parser.parse_args()
     main(args)

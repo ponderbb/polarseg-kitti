@@ -1,5 +1,5 @@
 # dataloader configs
-data_dir: "data/debug"
+data_dir: "../../../../data/polar"
 projection_type: 'traditional'
 semkitti_config: "semantic-kitti.yaml"
 grid_size: [480,360,32]
@@ -14,15 +14,15 @@ augmentations:
   circular_padding: False
 
 #training configs
-model_save_path: "models/debug.pt"
+model_save_path: "models/cartUnet_aug.pt"
 backbone: "UNet"
 train_batch: 2
 valid_batch: 2
 num_workers: 4
 lr_rate: 0.02
-val_check_interval: 500
+val_check_interval: 4000
 
 # logging
-logging: False
+logging: True
 wandb_project: "polarseg-kitti"
 

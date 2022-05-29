@@ -10,10 +10,10 @@ import src.misc.utils as utils
 
 
 class PolarNetDataModule(pl.LightningDataModule):
-    def __init__(self, config_path: str = "config/debug.yaml"):
+    def __init__(self, config_name: str = "debug.yaml"):
         super().__init__()
-        if Path(config_path).exists():
-            self.config = utils.load_yaml(config_path)
+        if Path("config/" + config_name).exists():
+            self.config = utils.load_yaml("config/" + config_name)
         else:
             raise FileNotFoundError("Config file can not be found.")
         if Path(self.config["data_dir"]).exists():
@@ -132,6 +132,10 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         if self.config["augmentations"]["flip"]:
             xyz = utils.random_flip(xyz)
 
+        # random rotate
+        if self.config["augmentations"]["rot"]:
+            xyz = utils.random_rot(xyz)
+
         # fix volume space
         ROI = self.max_vol - self.min_vol
         intervals = ROI / (self.grid_size - 1)
@@ -187,7 +191,7 @@ def label_voting(voxel_label: np.array, sorted_list: list):
     return voxel_label
 
 
-# FIXME: this shit is needed to be able to have multiple instances with different sizes
+# to handle multi-size point clouds
 def collate_fn(batch, test=False):
     label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
     for i in batch:
@@ -206,13 +210,10 @@ def collate_fn(batch, test=False):
     return collated
 
 
-# def collate_fn(batch):
-
-
 def main():
 
     # debugging polar_datamodule
-    data_module = PolarNetDataModule(config_path="config/debug.yaml")
+    data_module = PolarNetDataModule(config_name="debug.yaml")
     data_module.setup()
 
     dataloader = data_module.val_dataloader()
