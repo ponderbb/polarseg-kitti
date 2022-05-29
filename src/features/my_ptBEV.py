@@ -22,6 +22,7 @@ class ptBEVnet(nn.Module):
     ):
         super(ptBEVnet, self).__init__()
 
+
         self.max_pt = max_pt_per_encode
         self.backbone_name = backbone_name
         self.n_height = grid_size[2]
@@ -59,28 +60,28 @@ class ptBEVnet(nn.Module):
             self.backbone = BEV_Unet(self.n_class, self.n_height, self.circular_padding)
             
         elif self.backbone_name == "FCN":
-            self.backbone = models.segmentation.fcn_resnet50(pretrained=False, pretrained_backbone=False, num_classes=self.n_class*self.n_height).to(self.device)
+            self.backbone = models.segmentation.fcn_resnet50(pretrained=False, pretrained_backbone=False, num_classes=19*32).to(self.device)
             self.backbone.backbone.conv1 = nn.Conv2d(self.n_height, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False).to(self.device)
         elif self.backbone_name == "DL":
-            self.backbone = models.segmentation.deeplabv3_resnet101(pretrained=False, pretrained_backbone=False, num_classes=self.n_class*self.n_height).to(self.device)
+            self.backbone = models.segmentation.deeplabv3_resnet101(pretrained=False, pretrained_backbone=False, num_classes=19*32).to(self.device)
             self.backbone.backbone.conv1 = nn.Conv2d(self.n_height, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False).to(self.device)
 
-    def forward(self, pt_fea, xy_ind):
+    def forward(self, pt_fea, xy_ind, device):
         batch_size = len(pt_fea)
         backbone_input_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height]
-        backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(self.device)
+        backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(device)
 
         fea, ind = [], []
         num = 0
         for i in range(batch_size):
             pt_num = len(pt_fea[i])
-            batch_ind = torch.cat([torch.full((pt_num,1), i).to(self.device), xy_ind[i]], dim=1)
+            batch_ind = torch.cat([torch.full((pt_num,1), i).to(device), xy_ind[i]], dim=1)
             fea.append(pt_fea[i])
             ind.append(batch_ind)
             num += pt_num
-        fea, ind = torch.cat(fea, dim=0).to(self.device), torch.cat(ind, dim=0).to(self.device)
+        fea, ind = torch.cat(fea, dim=0).to(device), torch.cat(ind, dim=0).to(device)
             
-        random_ind = torch.randperm(num, device=self.device)
+        random_ind = torch.randperm(num, device=device)
         fea, ind = torch.index_select(fea, dim=0, index=random_ind), torch.index_select(ind, dim=0, index=random_ind)
         unq, unq_inv = torch.unique(ind, return_inverse=True, dim=0)
         ## Own implementation of torch.unique() function TODO: fix speed problem
@@ -100,10 +101,10 @@ class ptBEVnet(nn.Module):
         backbone_data[unq[:,0],unq[:,1],unq[:,2],:] = backbone_input_fea
 
         to_backbone = backbone_data.permute(0, 3, 1, 2)
-        backbone_fea = self.backbone(to_backbone)        
+        backbone_fea = self.backbone(to_backbone)
 
         if self.backbone_name != "UNet":
-            backbone_fea = torch.tensor(backbone_fea['out']).to(self.device)
+            backbone_fea = torch.tensor(backbone_fea['out']).to(device)
             class_per_voxel_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height, self.n_class]
             backbone_fea = backbone_fea.permute(0,2,3,1)
             backbone_fea = backbone_fea.view(class_per_voxel_dim).permute(0,4,1,2,3)
