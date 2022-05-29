@@ -53,6 +53,7 @@ class PolarNetModule(pl.LightningModule):
             projection_type=self.config["projection_type"],
             n_class=self.unique_class_idx,
             circular_padding=self.config["augmentations"]["circular_padding"],
+            device = self.device,
         )
         self.best_val_miou = 0
         self.exceptions = 0
@@ -76,7 +77,6 @@ class PolarNetModule(pl.LightningModule):
         prediction = self.model(
             pt_features,
             grid_index_tensor,
-            device=self.device,
         )
 
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
@@ -143,7 +143,6 @@ class PolarNetModule(pl.LightningModule):
         prediction = self.model(
             pt_features,
             grid_index_tensor,
-            device=self.device,
         )
 
         cross_entropy_loss = self.loss_function(prediction, vox_label)
