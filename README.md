@@ -21,7 +21,7 @@ Finally, initialize the [pre-commit](https://pre-commit.com/) git hooks:
 
 Logging is done through the [Weights & Biases](https://wandb.ai/) for which, more detailed documentation can be found [here](https://docs.wandb.ai/).
 
-After creating an account, for automatic log-in, copy your API key to the `.env` file in the root folder.
+After creating an account, for automatic log-in, copy your API key to the `.env` file in the root folder. If you do NOT want to log the experiment, set `wandb:False` in `config/{your_config}.yaml`.
 
 `WANDB_API_KEY = $YOUR_API_KEY `
 
@@ -33,8 +33,9 @@ After creating an account, for automatic log-in, copy your API key to the `.env`
     ├── LICENSE
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── README.md          <- The top-level README for developers using this project.
+    ├── config             <- configuration files for training and dataloaders
     ├── data
-    │   ├── debug          <- Data from third party sources.
+    │   ├── debug          <- Small amount of data separated for debugging purposes.
     |   └── sequences      <- Read more about the data setup in the other README
     |       ├── 00/           
     |       ├── velodyne/

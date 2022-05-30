@@ -1,6 +1,6 @@
 # dataloader configs
 data_dir: "data/debug"
-projection_type: 'traditional'
+projection_type: 'polar'
 semkitti_config: "semantic-kitti.yaml"
 grid_size: [480,360,32]
 max_vol: [50,50,1.5]
@@ -21,6 +21,7 @@ valid_batch: 2
 num_workers: 4
 lr_rate: 0.02
 val_check_interval: 500
+max_epochs: 30
 
 # logging
 logging: False

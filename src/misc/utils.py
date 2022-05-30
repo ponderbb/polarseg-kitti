@@ -80,8 +80,22 @@ def random_flip(xyz):
 
 
 def random_rot(xyz):
+    '''
+    Source equation for the coordinate roation around the origo (z-axis):
+    https://doubleroot.in/lessons/coordinate-geometry-basics/rotation-of-axes/
+    '''
     angle = np.random.randint(0, 360)
     x = (xyz[:, 0] * np.cos(np.deg2rad(angle)) - xyz[:, 1] * np.sin(np.deg2rad(angle))).reshape(-1, 1)
     y = (xyz[:, 1] * np.cos(np.deg2rad(angle)) + xyz[:, 0] * np.sin(np.deg2rad(angle))).reshape(-1, 1)
     z = xyz[:, 2].reshape(-1, 1)
     return np.concatenate((x, y, z), axis=1)
+
+def convert2polar(xyz):
+    '''
+    Source equation for the cartesian to polar conversion:
+    https://brilliant.org/wiki/convert-cartesian-coordinates-to-polar/
+    '''
+    r = np.sqrt(xyz[:,0]**2+xyz[:,1]**2)
+    theta = np.arctan2(xyz[:,1],xyz[:,0])
+    z = xyz[:,2]
+    return np.stack((r, theta, z), axis=1)
