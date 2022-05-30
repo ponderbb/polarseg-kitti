@@ -121,7 +121,6 @@ class PolarNetModule(pl.LightningModule):
         if self.config["logging"]:
             wandb.log({"val_miou": val_miou, "best_val_miou": self.best_val_miou})
 
-
     # initializations before new training
     def on_train_start(self) -> None:
         self.loss_list = []
@@ -148,7 +147,7 @@ class PolarNetModule(pl.LightningModule):
             grid_index_tensor,
             device=self.device,
         )
-        
+
         # NOTE: cite losses
         cross_entropy_loss = self.loss_function(prediction, vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
