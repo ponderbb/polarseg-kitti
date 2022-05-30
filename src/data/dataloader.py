@@ -20,23 +20,24 @@ class PolarNetDataModule(pl.LightningDataModule):
             self.data_dir = self.config["data_dir"]
         else:
             raise FileNotFoundError("Data folder can not be found.")
-        self.projection_type = self.config["projection_type"]
+        
+        assert self.config["projection_type"] in ["polar", "cartesian", "spherical"], "incorrect projection type"
 
     def setup(self, stage: Optional[str] = None) -> None:
+
+        # load the SemanticKITTI dataset
         if stage == "fit" or stage is None:
             self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train")
             self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
         if stage == "test" or stage is None:
             self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
 
-        if self.projection_type == "traditional":
-            if stage == "fit" or stage is None:
-                self.voxelised_train = cart_voxel_dataset(self.config, self.semkitti_train, data_split="train")
-                self.voxelised_valid = cart_voxel_dataset(self.config, self.semkitti_valid, data_split="valid")
-            if stage == "test" or stage is None:
-                self.voxelised_test = cart_voxel_dataset(self.config, self.semkitti_test, data_split="test")
-        elif self.projection_type == "polar":
-            raise NotImplementedError
+        # voxelize the datatset
+        if stage == "fit" or stage is None:
+            self.voxelised_train = voxelised_dataset(self.config, self.semkitti_train, data_split="train")
+            self.voxelised_valid = voxelised_dataset(self.config, self.semkitti_valid, data_split="valid")
+        if stage == "test" or stage is None:
+            self.voxelised_test = voxelised_dataset(self.config, self.semkitti_test, data_split="test")
 
     def train_dataloader(self):
         return DataLoader(
@@ -71,6 +72,7 @@ class SemanticKITTI(Dataset):
         self.data_split = data_split
         self.scan_list = []
         self.label_list = []
+
         try:
             split = self.semkitti_yaml["split"][self.data_split]
         except ValueError:
@@ -83,6 +85,7 @@ class SemanticKITTI(Dataset):
             self.label_list += utils.getPath(
                 "/".join([self.data_dir, "sequences", str(sequence_folder).zfill(2), "labels"])
             )
+
         self.scan_list.sort()
         self.label_list.sort()
 
@@ -106,12 +109,12 @@ class SemanticKITTI(Dataset):
         return (scan, labels)
 
 
-class cart_voxel_dataset(Dataset):
+class voxelised_dataset(Dataset):
     def __init__(
         self,
         config: dict,
         dataset,
-        data_split: str,
+        data_split,
     ):
         self.config = config
         self.dataset = dataset
@@ -119,6 +122,7 @@ class cart_voxel_dataset(Dataset):
         self.grid_size = np.asarray(config["grid_size"])
         self.max_vol = np.asarray(config["max_vol"], dtype=np.float32)
         self.min_vol = np.asarray(config["min_vol"], dtype=np.float32)
+        self.data_split = data_split
 
     def __len__(self):
         return len(self.dataset)
@@ -127,27 +131,31 @@ class cart_voxel_dataset(Dataset):
 
         # extrat data
         data, labels = self.dataset[index]
-        xyz = data[:, :3]
+        coordinate = data[:, :3]
         reflection = data[:, 3]
 
         if self.config["augmentations"]["flip"]:
-            xyz = utils.random_flip(xyz)
+            coordinate = utils.random_flip(coordinate)
 
         # random rotate
         if self.config["augmentations"]["rot"]:
-            xyz = utils.random_rot(xyz)
+            coordinate = utils.random_rot(coordinate)
+
+        if self.config["projection_type"] == "polar":
+            coordinate_xy = coordinate[:,:2].copy() # copy 2 cartesian coordinates for the 7->9 features
+            coordinate = utils.convert2polar(coordinate)
 
         # calculate the grid indices
         if self.config["augmentations"]["fixed_vol"]:
-            xyz = utils.clip(xyz, self.min_vol, self.max_vol)
+            coordinate = utils.clip(coordinate, self.min_vol, self.max_vol)
         else:
-            self.max_vol = np.amax(xyz, axis=0)
-            self.min_vol = np.amin(xyz, axis=0)
+            self.max_vol = np.amax(coordinate, axis=0)
+            self.min_vol = np.amin(coordinate, axis=0)
 
         step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
 
         # calculate the grid index for each point
-        grid_index = np.floor(xyz - self.min_vol / step_size).astype(int)
+        grid_index = np.floor(coordinate - self.min_vol / step_size).astype(int)
 
         # process the labels and vote for one per voxel #TODO: cite
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
@@ -159,8 +167,15 @@ class cart_voxel_dataset(Dataset):
 
         # center points on voxel # TODO: cite, not defined in the paper
         voxel_center = (grid_index.astype(float) + 0.5) * step_size + self.min_vol
-        centered_xyz = xyz - voxel_center
-        pt_features = np.concatenate((centered_xyz, xyz, reflection.reshape(-1, 1)), axis=1)
+        centered_coordinate = coordinate - voxel_center
+        pt_features = np.concatenate((centered_coordinate, coordinate, reflection.reshape(-1, 1)), axis=1)
+        if self.config["projection_type"] == "polar":
+            pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
+        
+        if self.data_split == "test":
+            voxelised_data = (voxel_label, grid_index, labels, pt_features, index)
+        else:
+            voxelised_data = (voxel_label, grid_index, labels, pt_features)
 
         """
         *complete data_tuple*
@@ -168,16 +183,10 @@ class cart_voxel_dataset(Dataset):
         voxel_label: voxel-level label
         grid_index: individual point's grid index
         labels: individual point's label
-        pt_features: [centered xyz, xyz, reflection]
+        pt_features: [centered coordinate, coordinate, reflection]
         """
 
-        return (voxel_label, grid_index, labels, pt_features)
-
-
-# class polar_voxel_dataset(Dataset):
-#     def __init__(self):
-#         name = name
-
+        return voxelised_data
 
 @jit("u1[:,:,:](u1[:,:,:],i8[:,:])", nopython=True, cache=True, parallel=False)
 def label_voting(voxel_label: np.array, sorted_list: list):

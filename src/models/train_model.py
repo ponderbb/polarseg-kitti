@@ -13,7 +13,6 @@ from pytorch_lightning.loggers import WandbLogger
 import wandb
 
 BASE_DIR = os.path.abspath(os.curdir)
-print(BASE_DIR)
 
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
@@ -25,7 +24,7 @@ from src.features.my_ptBEV import ptBEVnet
 
 
 class PolarNetModule(pl.LightningModule):
-    def __init__(self, config_name: str = "traditional.yaml") -> None:
+    def __init__(self, config_name: str) -> None:
         super().__init__()
 
         # check if config path exists
@@ -42,9 +41,10 @@ class PolarNetModule(pl.LightningModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
         # setup logging
-
         if self.config["logging"]:
             wandb.config.update(self.config)
+
+        
 
         # load models
         self.model = ptBEVnet(
@@ -72,18 +72,18 @@ class PolarNetModule(pl.LightningModule):
         pt_label = utils.move_labels_back(pt_label)
 
         # convert things to tensors
-        grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
-        pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
-        vox_label = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
+        grid_index_tensor = [torch.from_numpy(i[:, :2]).type(torch.IntTensor).to(self.device) for i in grid_index]
+        pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
+        vox_label_tensor = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
         prediction = self.model(
-            pt_features,
+            pt_features_tensor,
             grid_index_tensor,
             self.device
         )
 
-        cross_entropy_loss = self.loss_function(prediction.detach(), vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label, ignore=255)
+        cross_entropy_loss = self.loss_function(prediction.detach(), vox_label_tensor)
+        lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label_tensor, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
         prediction = torch.argmax(prediction, dim=1)
         prediction = prediction.detach().cpu().numpy()
@@ -139,19 +139,19 @@ class PolarNetModule(pl.LightningModule):
         vox_label = utils.move_labels_back(vox_label)
         pt_label = utils.move_labels_back(pt_label)
 
-        grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
-        pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
-        vox_label = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
+        grid_index_tensor = [torch.from_numpy(i[:, :2]).type(torch.IntTensor).to(self.device) for i in grid_index]
+        pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
+        vox_label_tensor = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
         prediction = self.model(
-            pt_features,
+            pt_features_tensor,
             grid_index_tensor,
             self.device
         )
 
         # NOTE: cite losses
-        cross_entropy_loss = self.loss_function(prediction, vox_label)
-        lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
+        cross_entropy_loss = self.loss_function(prediction, vox_label_tensor)
+        lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label_tensor, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
 
         if self.config["logging"]:
@@ -203,7 +203,7 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", default="traditional.yaml")
+    parser.add_argument("-c", "--config", default="debug.yaml")
 
     args = parser.parse_args()
     main(args)
