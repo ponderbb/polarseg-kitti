@@ -100,12 +100,11 @@ class ptBEVnet(nn.Module):
         #max_pointnet_fea = torch.stack(max_pointnet_fea)
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:,0],unq[:,1],unq[:,2],:] = backbone_input_fea
-        backbone_data= backbone_data.permute(0, 3, 1, 2)
 
         if self.backbone_name == "UNet":
-            backbone_fea = self.backbone(pointnet_fea)
+            backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
         else:
-            backbone_fea = self.backbone(pointnet_fea)
+            backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
             backbone_fea = torch.tensor(backbone_fea['out']).to(device)
             class_per_voxel_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height, self.n_class]
             backbone_fea = backbone_fea.permute(0,2,3,1)
