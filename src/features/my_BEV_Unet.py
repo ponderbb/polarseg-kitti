@@ -2,15 +2,18 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from dropblock import DropBlock2D
 
 from src.features.utils import down_CBR, up_CBR, CBR, BlockDrop
 
 class Unet(nn.Module):
+
     def __init__(self,n_class,n_height,circular_padding = False):
         super(Unet, self).__init__()
         self.n_class = n_class
         self.n_height = n_height
         self.circular_padding=circular_padding
+        
         self.dropout = BlockDrop(drop_p=0.5, block_size=7)
         self.norm = nn.BatchNorm2d(n_height)
         self.inc1 = CBR(n_height, 64, self.circular_padding)
@@ -30,7 +33,7 @@ class Unet(nn.Module):
         self.conv3 = CBR(64, 64, self.circular_padding)
         self.up4 = up_CBR(128, 64, self.circular_padding)
 
-        self.outc = nn.Conv2d(64, n_class, 1)
+        self.outc = nn.Conv2d(64, n_class*n_height, 1)
 
     def forward(self, x):
         x = self.norm(x)
