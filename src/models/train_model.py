@@ -69,6 +69,8 @@ class PolarNetModule(pl.LightningModule):
         # remap labels from 0->255
         vox_label = utils.move_labels_back(vox_label)
         pt_label = utils.move_labels_back(pt_label)
+
+        # convert things to tensors
         grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
@@ -114,11 +116,11 @@ class PolarNetModule(pl.LightningModule):
         if self.best_val_miou < val_miou:
             self.best_val_miou = val_miou
             torch.save(self.model.state_dict(), self.config["model_save_path"])
+            print(f"Current val_miou: {val_miou}\nBest val_miou: {self.best_val_miou}")
 
         if self.config["logging"]:
             wandb.log({"val_miou": val_miou, "best_val_miou": self.best_val_miou})
 
-        print("Current val miou is %.3f while the best val miou is %.3f" % (val_miou, self.best_val_miou))
 
     # initializations before new training
     def on_train_start(self) -> None:
@@ -136,6 +138,7 @@ class PolarNetModule(pl.LightningModule):
         # remap labels from 0->255
         vox_label = utils.move_labels_back(vox_label)
         pt_label = utils.move_labels_back(pt_label)
+
         grid_index_tensor = [torch.from_numpy(i[:, :2]).to(self.device) for i in grid_index]
         pt_features = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
@@ -145,7 +148,8 @@ class PolarNetModule(pl.LightningModule):
             grid_index_tensor,
             device=self.device,
         )
-
+        
+        # NOTE: cite losses
         cross_entropy_loss = self.loss_function(prediction, vox_label)
         lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss

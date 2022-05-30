@@ -42,6 +42,7 @@ class PolarNetDataModule(pl.LightningDataModule):
         return DataLoader(
             self.voxelised_train,
             collate_fn=collate_fn,
+            shuffle=True,
             batch_size=self.config["train_batch"],
             num_workers=self.config["num_workers"],
         )
@@ -105,7 +106,7 @@ class SemanticKITTI(Dataset):
         return (scan, labels)
 
 
-class cart_voxel_dataset(Dataset, PolarNetDataModule):
+class cart_voxel_dataset(Dataset):
     def __init__(
         self,
         config: dict,
@@ -136,18 +137,19 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         if self.config["augmentations"]["rot"]:
             xyz = utils.random_rot(xyz)
 
-        # fix volume space
-        ROI = self.max_vol - self.min_vol
-        intervals = ROI / (self.grid_size - 1)
-
         # calculate the grid indices
         if self.config["augmentations"]["fixed_vol"]:
             xyz = utils.clip(xyz, self.min_vol, self.max_vol)
+        else:
+            self.max_vol = np.amax(xyz, axis=0)
+            self.min_vol = np.amin(xyz, axis=0)
+
+        step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
 
         # calculate the grid index for each point
-        grid_index = np.floor(xyz - self.min_vol / intervals).astype(int)
+        grid_index = np.floor(xyz - self.min_vol / step_size).astype(int)
 
-        # process the labels and vote for one per voxel
+        # process the labels and vote for one per voxel #TODO: cite
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
         raw_point_label = np.concatenate([grid_index, labels.reshape(-1, 1)], axis=1)
         sorted_point_label = raw_point_label[
@@ -155,8 +157,8 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         ].astype(np.int64)
         voxel_label = label_voting(np.copy(voxel_label), sorted_point_label)
 
-        # center points on voxel
-        voxel_center = (grid_index.astype(float) + 0.5) * intervals + self.min_vol
+        # center points on voxel # TODO: cite, not defined in the paper
+        voxel_center = (grid_index.astype(float) + 0.5) * step_size + self.min_vol
         centered_xyz = xyz - voxel_center
         pt_features = np.concatenate((centered_xyz, xyz, reflection.reshape(-1, 1)), axis=1)
 
@@ -172,11 +174,14 @@ class cart_voxel_dataset(Dataset, PolarNetDataModule):
         return (voxel_label, grid_index, labels, pt_features)
 
 
+# class polar_voxel_dataset(Dataset):
+#     def __init__(self):
+#         name = name
+
+
 @jit("u1[:,:,:](u1[:,:,:],i8[:,:])", nopython=True, cache=True, parallel=False)
 def label_voting(voxel_label: np.array, sorted_list: list):
-
-    # FIXME: way to similar to the original,
-    # figure out how to do it differenlty (only do a lookup array for existing labels or sth)
+    # TODO: cite
     label_counter = np.zeros((256,), dtype=np.uint)
     label_counter[sorted_list[0, 3]] = 1
     compare_label_a = sorted_list[0, :3]
