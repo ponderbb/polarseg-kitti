@@ -34,8 +34,24 @@ class ptBEVnet(nn.Module):
         else:
             AssertionError, "incorrect projection type"
 
-        self.PointNet = Simplified_PointNet(fea_dim, out_pt_fea_dim, self.n_height)
+        self.PointNet = nn.Sequential(
+            nn.BatchNorm1d(fea_dim),
+            nn.Linear(fea_dim, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(64, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(256, out_pt_fea_dim),
+        )
 
+        self.make_backbone_input_fea_dim = nn.Sequential(
+            nn.Linear(out_pt_fea_dim, self.n_height), 
+            nn.LeakyReLU()
+        )
         assert self.backbone_name in ["UNet", "FCN", "DL"], "backbone name is incorrect"
 
         if self.backbone_name == "UNet":
@@ -44,7 +60,8 @@ class ptBEVnet(nn.Module):
         elif self.backbone_name == "FCN":
             self.backbone = models.segmentation.fcn_resnet50(pretrained=False, pretrained_backbone=False, num_classes=self.n_class*self.n_height)
             self.backbone.backbone.conv1 = nn.Conv2d(self.n_height, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        
+            #pretrained_model = torch.load("https://download.pytorch.org/models/fcn_resnet50_coco-1167a1af.pth")
+            #self.backbone.state_load_dict(pretrained_model, strict=False)
         elif self.backbone_name == "DL":
             self.backbone = models.segmentation.deeplabv3_resnet101(pretrained=False, pretrained_backbone=False, num_classes=self.n_class*self.n_height)
             self.backbone.backbone.conv1 = nn.Conv2d(self.n_height, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
@@ -73,7 +90,17 @@ class ptBEVnet(nn.Module):
         unq_inv = unq_inv[remain_ind]
         unq_cnt = torch.clamp(unq_cnt,max=self.max_pt)
 
-        pointnet_fea = self.PointNet(fea, unq, unq_inv, batch_size, device)
+        backbone_input_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height]
+        backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(device)
+        pointnet_fea = self.PointNet(fea)
+        max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
+        #max_pointnet_fea = []
+        #for i in range(len(unq)):
+        #    max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
+        #max_pointnet_fea = torch.stack(max_pointnet_fea)
+        backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
+        backbone_data[unq[:,0],unq[:,1],unq[:,2],:] = backbone_input_fea
+        backbone_data= backbone_data.permute(0, 3, 1, 2)
 
         if self.backbone_name == "UNet":
             backbone_fea = self.backbone(pointnet_fea)
@@ -85,42 +112,6 @@ class ptBEVnet(nn.Module):
             backbone_fea = backbone_fea.view(class_per_voxel_dim).permute(0,4,1,2,3)
         return backbone_fea
 
-
-class Simplified_PointNet(nn.Module):
-    def __init__(self, fea_dim, out_pt_fea_dim, n_height, h, w):
-        self.h, self.w, self.c = h, w, n_height
-        
-        self.PointNet = nn.Sequential(
-            nn.BatchNorm1d(fea_dim),
-            nn.Linear(fea_dim, 64),
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(64, 128),
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(128, 256),
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(256, out_pt_fea_dim),
-        )
-
-        self.make_backbone_input_fea_dim = nn.Sequential(
-            nn.Linear(out_pt_fea_dim, self.c), 
-            nn.LeakyReLU()
-        )
-
-    def forward(self, fea, unq, unq_inv, n, device):
-        backbone_input_dim = [n, self.h, self.w, self.c]
-        backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(device)
-        pointnet_fea = self.PointNet(fea)
-        max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
-        #max_pointnet_fea = []
-        #for i in range(len(unq)):
-        #    max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
-        #max_pointnet_fea = torch.stack(max_pointnet_fea)
-        backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
-        backbone_data[unq[:,0],unq[:,1],unq[:,2],:] = backbone_input_fea
-        return backbone_data.permute(0, 3, 1, 2)
 
 def grp_range_torch(a,dev):
     idx = torch.cumsum(a,0)
