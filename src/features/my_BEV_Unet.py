@@ -2,28 +2,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dropblock import DropBlock2D
 
 from src.features.utils import down_CBR, up_CBR, CBR, BlockDrop
 
-class BEV_Unet(nn.Module):
-
+class Unet(nn.Module):
     def __init__(self,n_class,n_height,circular_padding = False):
-        super(BEV_Unet, self).__init__()
+        super(Unet, self).__init__()
         self.n_class = n_class
         self.n_height = n_height
-        self.backbone = UNet(n_class*n_height,n_height,circular_padding)
-
-    def forward(self, x):
-        x = self.backbone(x)
-        x = x.permute(0,2,3,1)
-        class_per_voxel_dim = [x.size()[0], x.size()[1], x.size()[2], self.n_height, self.n_class]
-        x = x.view(class_per_voxel_dim).permute(0,4,1,2,3)
-        return x
-    
-class UNet(nn.Module):
-    def __init__(self, n_class,n_height,circular_padding):
-        super(UNet, self).__init__()
         self.circular_padding=circular_padding
         self.dropout = BlockDrop(drop_p=0.5, block_size=7)
         self.norm = nn.BatchNorm2d(n_height)
@@ -58,6 +44,7 @@ class UNet(nn.Module):
         x = self.dropout(self.conv3(self.up3(x, x2)))
         x = self.dropout(self.conv3(self.up4(x, x1)))
         x = self.outc(x)
+        x = x.permute(0,2,3,1)
+        class_per_voxel_dim = [x.size()[0], x.size()[1], x.size()[2], self.n_height, self.n_class]
+        x = x.view(class_per_voxel_dim).permute(0,4,1,2,3)
         return x
-
-
