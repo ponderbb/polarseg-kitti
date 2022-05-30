@@ -147,7 +147,7 @@ class cart_voxel_dataset(Dataset):
         step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
 
         # calculate the grid index for each point
-        grid_index = np.floor(xyz - self.min_vol / step_size).astype(int)
+        grid_index = np.floor((xyz - self.min_vol)/ step_size).astype(int)
 
         # process the labels and vote for one per voxel #TODO: cite
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
