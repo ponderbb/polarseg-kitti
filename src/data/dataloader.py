@@ -20,7 +20,7 @@ class PolarNetDataModule(pl.LightningDataModule):
             self.data_dir = self.config["data_dir"]
         else:
             raise FileNotFoundError("Data folder can not be found.")
-        
+
         assert self.config["projection_type"] in ["polar", "cartesian", "spherical"], "incorrect projection type"
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -52,6 +52,7 @@ class PolarNetDataModule(pl.LightningDataModule):
         return DataLoader(
             self.voxelised_valid,
             collate_fn=collate_fn,
+            shuffle=False,
             batch_size=self.config["valid_batch"],
             num_workers=self.config["num_workers"],
         )
@@ -60,6 +61,7 @@ class PolarNetDataModule(pl.LightningDataModule):
         return DataLoader(
             self.voxelised_test,
             collate_fn=collate_fn,
+            shuffle=False,
             batch_size=self.config["valid_batch"],
             num_workers=self.config["num_workers"],
         )
@@ -142,7 +144,7 @@ class voxelised_dataset(Dataset):
             coordinate = utils.random_rot(coordinate)
 
         if self.config["projection_type"] == "polar":
-            coordinate_xy = coordinate[:,:2].copy() # copy 2 cartesian coordinates for the 7->9 features
+            coordinate_xy = coordinate[:, :2].copy()  # copy 2 cartesian coordinates for the 7->9 features
             coordinate = utils.convert2polar(coordinate)
 
         # calculate the grid indices
@@ -171,7 +173,7 @@ class voxelised_dataset(Dataset):
         pt_features = np.concatenate((centered_coordinate, coordinate, reflection.reshape(-1, 1)), axis=1)
         if self.config["projection_type"] == "polar":
             pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
-        
+
         if self.data_split == "test":
             voxelised_data = (voxel_label, grid_index, labels, pt_features, index)
         else:
@@ -187,6 +189,7 @@ class voxelised_dataset(Dataset):
         """
 
         return voxelised_data
+
 
 @jit("u1[:,:,:](u1[:,:,:],i8[:,:])", nopython=True, cache=True, parallel=False)
 def label_voting(voxel_label: np.array, sorted_list: list):

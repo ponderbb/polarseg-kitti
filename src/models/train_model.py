@@ -44,8 +44,6 @@ class PolarNetModule(pl.LightningModule):
         if self.config["logging"]:
             wandb.config.update(self.config)
 
-        
-
         # load models
         self.model = ptBEVnet(
             backbone_name=self.config["backbone"],
@@ -53,7 +51,7 @@ class PolarNetModule(pl.LightningModule):
             projection_type=self.config["projection_type"],
             n_class=self.unique_class_idx,
             circular_padding=self.config["augmentations"]["circular_padding"],
-            device = self.device,
+            device=self.device,
         )
         self.best_val_miou = 0
         self.exceptions = 0
@@ -76,11 +74,7 @@ class PolarNetModule(pl.LightningModule):
         pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label_tensor = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
-        prediction = self.model(
-            pt_features_tensor,
-            grid_index_tensor,
-            self.device
-        )
+        prediction = self.model(pt_features_tensor, grid_index_tensor, self.device)
 
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label_tensor)
         lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label_tensor, ignore=255)
@@ -117,7 +111,7 @@ class PolarNetModule(pl.LightningModule):
         if self.best_val_miou < val_miou:
             self.best_val_miou = val_miou
             torch.save(self.model.state_dict(), self.config["model_save_path"])
-            print(f"Current val_miou: {val_miou}\nBest val_miou: {self.best_val_miou}")
+            print("---\nCurrent val_miou: {:.4f}\nBest val_miou: {:.4f}".format(val_miou, self.best_val_miou))
 
         if self.config["logging"]:
             wandb.log({"val_miou": val_miou, "best_val_miou": self.best_val_miou})
@@ -143,11 +137,7 @@ class PolarNetModule(pl.LightningModule):
         pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label_tensor = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
-        prediction = self.model(
-            pt_features_tensor,
-            grid_index_tensor,
-            self.device
-        )
+        prediction = self.model(pt_features_tensor, grid_index_tensor, self.device)
 
         # NOTE: cite losses
         cross_entropy_loss = self.loss_function(prediction, vox_label_tensor)
@@ -195,6 +185,7 @@ def main(args):
         devices=1,
         logger=logger,
         default_root_dir="models/",
+        max_epochs=polar_model.config["max_epochs"],
     )
 
     trainer.fit(model=polar_model, datamodule=polar_datamodule)
