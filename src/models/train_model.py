@@ -44,15 +44,15 @@ class PolarNetModule(pl.LightningModule):
         if self.config["logging"]:
             wandb.config.update(self.config)
 
-        # load models
+        # load model
         self.model = ptBEVnet(
             backbone_name=self.config["backbone"],
             grid_size=self.config["grid_size"],
             projection_type=self.config["projection_type"],
             n_class=self.unique_class_idx,
             circular_padding=self.config["augmentations"]["circular_padding"],
-            device=self.device,
         )
+
         self.best_val_miou = 0
         self.exceptions = 0
         self.epoch = 0
@@ -111,7 +111,7 @@ class PolarNetModule(pl.LightningModule):
         if self.best_val_miou < val_miou:
             self.best_val_miou = val_miou
             torch.save(self.model.state_dict(), self.config["model_save_path"])
-            print("---\nCurrent val_miou: {:.4f}\nBest val_miou: {:.4f}".format(val_miou, self.best_val_miou))
+        print("---\nCurrent val_miou: {:.4f}\nBest val_miou: {:.4f}".format(val_miou, self.best_val_miou))
 
         if self.config["logging"]:
             wandb.log({"val_miou": val_miou, "best_val_miou": self.best_val_miou})

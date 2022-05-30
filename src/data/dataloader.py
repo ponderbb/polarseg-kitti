@@ -125,6 +125,12 @@ class voxelised_dataset(Dataset):
         self.max_vol = np.asarray(config["max_vol"], dtype=np.float32)
         self.min_vol = np.asarray(config["min_vol"], dtype=np.float32)
         self.data_split = data_split
+        if self.config["projection_type"] == "spherical":
+            self.proj_fov_up = 3.0
+            self.proj_fov_down = -25.0
+            self.proj_H = config["grid_size"][0]
+            self.proj_W = config["grid_size"][1]
+            self.proj_D = config["grid_size"][2]
 
     def __len__(self):
         return len(self.dataset)
@@ -154,10 +160,47 @@ class voxelised_dataset(Dataset):
             self.max_vol = np.amax(coordinate, axis=0)
             self.min_vol = np.amin(coordinate, axis=0)
 
-        step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
+        if self.config["projection_type"] == "spherical":
+            # TODO: pack it up into helper functions
 
-        # calculate the grid index for each point
-        grid_index = np.floor((coordinate - self.min_vol) / step_size).astype(int)
+            point_num = len(coordinate)
+
+            # laser parameters
+            fov_up = self.proj_fov_up / 180.0 * np.pi
+            fov_down = self.proj_fov_down / 180.0 * np.pi
+            fov = abs(fov_down) + abs(fov_up)
+
+            depth = np.linalg.norm(coordinate, 2, axis=1)
+            max_depth = np.floor(np.max(depth))
+            min_depth = np.floor(np.min(depth))
+            x, y, z = coordinate[:, 0], coordinate[:, 1], coordinate[:, 2]
+
+            yaw = -np.arctan2(y, x)
+            pitch = np.arcsin(z / depth)
+
+            proj_w = (0.5 * (yaw / np.pi + 1.0)) * self.proj_W
+            proj_h = (1.0 - (pitch + abs(fov_down)) / fov) * self.proj_H
+            depth = depth.reshape(point_num, 1)
+
+            proj_x_ind = np.floor(proj_h)
+            proj_x_ind = np.minimum(self.proj_H - 1, proj_x_ind)
+            proj_x_ind = np.maximum(0, proj_x_ind).astype(np.int32).reshape(point_num, 1)
+
+            proj_y_ind = np.floor(proj_w)
+            proj_y_ind = np.minimum(self.proj_W - 1, proj_y_ind)
+            proj_y_ind = np.maximum(0, proj_y_ind).astype(np.int32).reshape(point_num, 1)
+
+            grid_xy_ind = np.concatenate(([proj_x_ind, proj_y_ind]), axis=1)
+            grid_z_ind = np.zeros(shape=(point_num, 1))
+            for i in range(1, self.proj_D):
+                grid_z_ind[depth > ((max_depth - min_depth) / self.proj_D) * i] = i + 1
+            grid_index = np.concatenate(([grid_xy_ind, grid_z_ind]), axis=1).astype(np.int)
+
+        else:
+            step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
+
+            # calculate the grid index for each point
+            grid_index = np.floor((coordinate - self.min_vol) / step_size).astype(int)
 
         # process the labels and vote for one per voxel #TODO: cite
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
@@ -167,12 +210,17 @@ class voxelised_dataset(Dataset):
         ].astype(np.int64)
         voxel_label = label_voting(np.copy(voxel_label), sorted_point_label)
 
-        # center points on voxel # TODO: cite, not defined in the paper
-        voxel_center = (grid_index.astype(float) + 0.5) * step_size + self.min_vol
-        centered_coordinate = coordinate - voxel_center
-        pt_features = np.concatenate((centered_coordinate, coordinate, reflection.reshape(-1, 1)), axis=1)
-        if self.config["projection_type"] == "polar":
-            pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
+        if self.config["projection_type"] == "spherical":
+            proj_xy = np.concatenate((proj_h.reshape(point_num, 1), proj_w.reshape(point_num, 1)), axis=1)
+            proj_xyz = np.concatenate((proj_xy, depth), axis=1)
+            pt_features = np.concatenate((proj_xyz, coordinate, reflection.reshape(-1, 1)), axis=1)
+        else:
+            # center points on voxel # TODO: cite, not defined in the paper
+            voxel_center = (grid_index.astype(float) + 0.5) * step_size + self.min_vol
+            centered_coordinate = coordinate - voxel_center
+            pt_features = np.concatenate((centered_coordinate, coordinate, reflection.reshape(-1, 1)), axis=1)
+            if self.config["projection_type"] == "polar":
+                pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
 
         if self.data_split == "test":
             voxelised_data = (voxel_label, grid_index, labels, pt_features, index)

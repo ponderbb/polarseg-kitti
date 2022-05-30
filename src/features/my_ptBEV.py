@@ -26,7 +26,7 @@ class ptBEVnet(nn.Module):
         self.n_class = len(n_class)
         self.circular_padding = circular_padding
 
-        if projection_type == "cartesian":
+        if projection_type in ["cartesian", "spherical"]:
             fea_dim = 7
         elif projection_type == "polar":
             fea_dim = 9
