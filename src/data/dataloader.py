@@ -149,17 +149,16 @@ class voxelised_dataset(Dataset):
         if self.config["augmentations"]["rot"]:
             coordinate = utils.random_rot(coordinate)
 
-        # calculate the grid indices
-        if self.config["augmentations"]["fixed_vol"]:
-            coordinate = utils.limit(coordinate, self.min_vol, self.max_vol)
-        else:
-            self.max_vol = np.amax(coordinate, axis=0)
-            self.min_vol = np.amin(coordinate, axis=0)
-
         if self.config["projection_type"] == "polar":
             coordinate_xy = coordinate[:, :2].copy()  # copy 2 cartesian coordinates for the 7->9 features
             coordinate = utils.convert2polar(coordinate)
-            self.max_vol = np.amax(coordinate, axis=0)  # calculate the maximums again, in polar coordinates
+
+        # limit voxels to certain volume space
+        if self.config["augmentations"]["fixed_vol"]:
+            coordinate_limited = utils.limit(coordinate, self.min_vol, self.max_vol)
+        else:
+            coordinate_limited = coordinate
+            self.max_vol = np.amax(coordinate, axis=0)
             self.min_vol = np.amin(coordinate, axis=0)
 
         if self.config["projection_type"] == "spherical":
@@ -202,7 +201,7 @@ class voxelised_dataset(Dataset):
             step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
 
             # calculate the grid index for each point
-            grid_index = np.floor((coordinate - self.min_vol) / step_size).astype(int)
+            grid_index = np.floor((coordinate_limited - self.min_vol) / step_size).astype(int)
 
         # process the labels and vote for one per voxel #TODO: cite
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
