@@ -149,15 +149,17 @@ class voxelised_dataset(Dataset):
         if self.config["augmentations"]["rot"]:
             coordinate = utils.random_rot(coordinate)
 
+        # calculate the grid indices
+        if self.config["augmentations"]["fixed_vol"]:
+            coordinate = utils.limit(coordinate, self.min_vol, self.max_vol)
+        else:
+            self.max_vol = np.amax(coordinate, axis=0)
+            self.min_vol = np.amin(coordinate, axis=0)
+
         if self.config["projection_type"] == "polar":
             coordinate_xy = coordinate[:, :2].copy()  # copy 2 cartesian coordinates for the 7->9 features
             coordinate = utils.convert2polar(coordinate)
-
-        # calculate the grid indices
-        if self.config["augmentations"]["fixed_vol"]:
-            coordinate = utils.clip(coordinate, self.min_vol, self.max_vol)
-        else:
-            self.max_vol = np.amax(coordinate, axis=0)
+            self.max_vol = np.amax(coordinate, axis=0)  # calculate the maximums again, in polar coordinates
             self.min_vol = np.amin(coordinate, axis=0)
 
         if self.config["projection_type"] == "spherical":

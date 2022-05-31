@@ -13,6 +13,7 @@ class ptBEVnet(nn.Module):
         grid_size,
         projection_type,
         n_class,
+        sampling,
         out_pt_fea_dim=512,
         max_pt_per_encode=256,
         circular_padding=False,
@@ -25,6 +26,9 @@ class ptBEVnet(nn.Module):
         self.grid_size = grid_size
         self.n_class = len(n_class)
         self.circular_padding = circular_padding
+        self.sampling = sampling
+
+        assert self.sampling in ["random", "None"], "sampling name is incorrect"
 
         if projection_type in ["cartesian", "spherical"]:
             fea_dim = 7
@@ -87,21 +91,26 @@ class ptBEVnet(nn.Module):
         fea, ind = torch.index_select(fea, dim=0, index=random_ind), torch.index_select(ind, dim=0, index=random_ind)
         unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
 
-        grp_ind = grp_range_torch(unq_cnt, device)[torch.argsort(torch.argsort(unq_inv))]
-        remain_ind = grp_ind < self.max_pt
-        fea = fea[remain_ind, :]
-        ind = ind[remain_ind, :]
-        unq_inv = unq_inv[remain_ind]
-        unq_cnt = torch.clamp(unq_cnt, max=self.max_pt)
+        if self.sampling:
+            # TODO: cite this
+            grp_ind = grp_range_torch(unq_cnt, device)[torch.argsort(torch.argsort(unq_inv))]
+            remain_ind = grp_ind < self.max_pt
+            fea = fea[remain_ind, :]
+            ind = ind[remain_ind, :]
+            unq_inv = unq_inv[remain_ind]
+            unq_cnt = torch.clamp(unq_cnt, max=self.max_pt)
 
+        # TODO: cite this
         backbone_input_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height]
         backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(device)
         pointnet_fea = self.PointNet(fea)
+
         max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
         # max_pointnet_fea = []
         # for i in range(len(unq)):
         #    max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
         # max_pointnet_fea = torch.stack(max_pointnet_fea)
+
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
 

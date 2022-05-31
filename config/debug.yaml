@@ -11,17 +11,19 @@ augmentations:
   fixed_vol: True
   flip: True
   rot: True
-  circular_padding: False
+  circular_padding: True
 
 #training configs
 model_save_path: "models/debug.pt"
 backbone: "UNet"
 train_batch: 2
 valid_batch: 2
+LARS: False
 num_workers: 4
 lr_rate: 0.02
 val_check_interval: 500
 max_epochs: 30
+sampling: "random"
 
 # logging
 logging: False
