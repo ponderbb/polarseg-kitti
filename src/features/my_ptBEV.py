@@ -4,6 +4,8 @@ import torch_scatter
 import torchvision.models as models
 
 from src.features.my_BEV_Unet import Unet
+from src.features.my_FCN_resnet import Resnet_FCN
+from src.features.my_DL_resnet import Resnet_DL
 
 
 class ptBEVnet(nn.Module):
@@ -58,21 +60,10 @@ class ptBEVnet(nn.Module):
             self.backbone = Unet(self.n_class, self.n_height, self.circular_padding)
 
         elif self.backbone_name == "FCN":
-            self.backbone = models.segmentation.fcn_resnet50(
-                pretrained=False, pretrained_backbone=False, num_classes=self.n_class * self.n_height
-            )
-            self.backbone.backbone.conv1 = nn.Conv2d(
-                self.n_height, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
-            )
-            # pretrained_model = torch.load("https://download.pytorch.org/models/fcn_resnet50_coco-1167a1af.pth")
-            # self.backbone.state_load_dict(pretrained_model, strict=False)
+            self.backbone = Resnet_FCN(self.n_class, self.n_height, self.circular_padding)
+            
         elif self.backbone_name == "DL":
-            self.backbone = models.segmentation.deeplabv3_resnet101(
-                pretrained=False, pretrained_backbone=False, num_classes=self.n_class * self.n_height
-            )
-            self.backbone.backbone.conv1 = nn.Conv2d(
-                self.n_height, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
-            )
+            self.backbone = Resnet_DL(self.n_class, self.n_height, self.circular_padding)
 
     def forward(self, pt_fea, xy_ind, device):
         batch_size = len(pt_fea)
@@ -114,14 +105,8 @@ class ptBEVnet(nn.Module):
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
 
-        if self.backbone_name == "UNet":
-            backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
-        else:
-            backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
-            backbone_fea = torch.tensor(backbone_fea["out"]).to(device)
-            class_per_voxel_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height, self.n_class]
-            backbone_fea = backbone_fea.permute(0, 2, 3, 1)
-            backbone_fea = backbone_fea.view(class_per_voxel_dim).permute(0, 4, 1, 2, 3)
+        backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
+        
         return backbone_fea
 
 
