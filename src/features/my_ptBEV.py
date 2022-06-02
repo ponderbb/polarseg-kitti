@@ -62,7 +62,7 @@ class ptBEVnet(nn.Module):
             self.backbone = ResNet_FCN(self.n_class, self.n_height, self.circular_padding)
 
         elif self.backbone_name == "DL":
-            self.backbone = ResNet_DL(self.n_class, self.n_height, self.circular_padding)
+            self.backbone = ResNet_DL(self.n_class, self.n_height, self.circular_padding, grid_size)
 
     def forward(self, pt_fea, xy_ind, device):
         batch_size = len(pt_fea)

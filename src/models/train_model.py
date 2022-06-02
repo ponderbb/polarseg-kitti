@@ -17,7 +17,7 @@ from src.models.lightning_frame import PolarNetModule
 def main(args):
 
     polar_datamodule = PolarNetDataModule(args.config)
-    polar_model = PolarNetModule(args.config)
+    polar_model = PolarNetModule(args.config, out_sequence=None)
     if polar_model.config["logging"]:
         logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="True", entity="cs492_t13")
     else:

@@ -1,5 +1,6 @@
+import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pytorch_lightning as pl
@@ -14,7 +15,7 @@ from src.features.my_ptBEV import ptBEVnet
 
 
 class PolarNetModule(pl.LightningModule):
-    def __init__(self, config_name: str) -> None:
+    def __init__(self, config_name: str, out_sequence: Optional[Any] = None) -> None:
         super().__init__()
 
         # check if config path exists
@@ -28,9 +29,13 @@ class PolarNetModule(pl.LightningModule):
 
         # define variables based on config file
         self.loss_function = torch.nn.CrossEntropyLoss(ignore_index=255)
+        self.out_sequence = out_sequence
 
     def setup(self, stage: Optional[str] = None) -> None:
         # setup logging
+        if stage == "test":
+            self.config["logging"] = False
+
         if self.config["logging"]:
             wandb.config.update(self.config)
 
@@ -43,6 +48,12 @@ class PolarNetModule(pl.LightningModule):
             circular_padding=self.config["augmentations"]["circular_padding"],
             sampling=self.config["sampling"],
         )
+
+        if stage == "validate" or stage == "test":
+            if Path(self.config["model_save_path"]).exists():
+                self.model.load_state_dict(torch.load(self.config["model_save_path"]))
+            else:
+                raise FileExistsError("No trained model found.")
 
         self.best_val_miou = 0
         self.exceptions = 0
@@ -59,8 +70,8 @@ class PolarNetModule(pl.LightningModule):
         vox_label, grid_index, pt_label, pt_features = batch
 
         # remap labels from 0->255
-        vox_label = utils.move_labels_back(vox_label)
-        pt_label = utils.move_labels_back(pt_label)
+        vox_label = utils.move_labels(vox_label, -1)
+        pt_label = utils.move_labels(pt_label, -1)
 
         # convert things to tensors
         grid_index_tensor = [torch.from_numpy(i[:, :2]).type(torch.IntTensor).to(self.device) for i in grid_index]
@@ -124,8 +135,8 @@ class PolarNetModule(pl.LightningModule):
         vox_label, grid_index, pt_label, pt_features = batch
 
         # remap labels from 0->255
-        vox_label = utils.move_labels_back(vox_label)
-        pt_label = utils.move_labels_back(pt_label)
+        vox_label = utils.move_labels(vox_label, -1)
+        pt_label = utils.move_labels(pt_label, -1)
 
         grid_index_tensor = [torch.from_numpy(i[:, :2]).type(torch.IntTensor).to(self.device) for i in grid_index]
         pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
@@ -142,3 +153,35 @@ class PolarNetModule(pl.LightningModule):
             wandb.log({"train_loss": combined_loss})
         self.loss_list.append(combined_loss.item())
         return combined_loss
+
+    def on_test_start(self) -> None:
+
+        self.inference_path = "models/inference/{}/".format(Path(self.config["model_save_path"]).stem)
+
+        utils.inference_dir(self.inference_path)
+
+    def test_step(self, batch, batch_idx):
+
+        __, grid_index, __, pt_features, index = batch
+
+        grid_index_tensor = [torch.from_numpy(i[:, :2]).type(torch.IntTensor).to(self.device) for i in grid_index]
+        pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
+
+        prediction = self.model(pt_features_tensor, grid_index_tensor, self.device)
+        prediction = (torch.argmax(prediction, 1)).cpu().detach().numpy()
+
+        for i, __ in enumerate(grid_index):
+            pt_pred_label = prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]]
+            pt_pred_label = utils.move_labels(pt_pred_label, 1)
+            pt_id = Path(self.out_sequence.scan_list[index[i]]).stem
+            assert pt_id == str(index[i]).zfill(6), "mismatch between load id: {} and write id: {}".format(
+                pt_id, str(index[i]).zfill(6)
+            )
+            sequence = Path(self.out_sequence.scan_list[index[i]]).parents[1].stem
+            new_file_path = "{}sequences/{}/predictions/{}.label".format(
+                self.inference_path, sequence, str(pt_id).zfill(6)
+            )
+
+            if not Path(new_file_path).parents[0].exists():
+                os.makedirs(Path(new_file_path).parents[0])
+            pt_pred_label.tofile(new_file_path)

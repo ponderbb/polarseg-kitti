@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -57,11 +58,11 @@ def load_yaml(file):
     return dict
 
 
-def move_labels_back(label):
+def move_labels(label, n):
     if isinstance(label, list):
-        return [i - 1 for i in label]
+        return [i + np.uint8(n) for i in label]
     else:
-        return label - 1
+        return label + np.uint8(n)
 
 
 def random_flip(xyz):
@@ -123,3 +124,14 @@ def fast_hist_crop(output, target, unique_label):
     hist = hist[unique_label, :]
     hist = hist[:, unique_label]
     return hist
+
+
+def inference_dir(inference_path=str):
+    """
+    initialize empty directory for output labels, with the name of the model
+    """
+    os.makedirs(inference_path, exist_ok=True)
+
+    if os.listdir(inference_path):
+        shutil.rmtree(inference_path)
+        os.makedirs(inference_path, exist_ok=False)

@@ -29,12 +29,16 @@ class PolarNetDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train")
             self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
+        if stage == "validate" or stage is None:
+            self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
         if stage == "test" or stage is None:
             self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
 
         # voxelize the datatset
         if stage == "fit" or stage is None:
             self.voxelised_train = voxelised_dataset(self.config, self.semkitti_train, data_split="train")
+            self.voxelised_valid = voxelised_dataset(self.config, self.semkitti_valid, data_split="valid")
+        if stage == "validate" or stage is None:
             self.voxelised_valid = voxelised_dataset(self.config, self.semkitti_valid, data_split="valid")
         if stage == "test" or stage is None:
             self.voxelised_test = voxelised_dataset(self.config, self.semkitti_test, data_split="test")
@@ -62,7 +66,7 @@ class PolarNetDataModule(pl.LightningDataModule):
             self.voxelised_test,
             collate_fn=collate_fn,
             shuffle=False,
-            batch_size=self.config["valid_batch"],
+            batch_size=self.config["test_batch"],
             num_workers=self.config["num_workers"],
         )
 
@@ -257,35 +261,21 @@ def label_voting(voxel_label: np.array, sorted_list: list):
     return voxel_label
 
 
-# # to handle multi-size point clouds
-# def collate_fn_test(batch):
-#     label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
-#     for i in batch:
-#         label.append(i[0])
-#         grid_index.append(i[1])
-#         pt_label.append(i[2])
-#         pt_feature.append(i[3])
-#         index.append(i[4])
-#     return (np.stack(label), grid_index, pt_label, pt_feature, index)
-
-
 def collate_fn(batch):
-    # label, grid_index, pt_label, pt_feature = [], [], [], []
-    # for i in batch:
-    #     label.append(i[0])
-    #     grid_index.append(i[1])
-    #     pt_label.append(i[2])
-    #     pt_feature.append(i[3])
-    voxel_lvl, point_lvl = [], []
+    label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
     for i in batch:
-        voxel_lvl.append(i[0])
-        point_lvl.append(i[1:])
-    collated = (np.stack(voxel_lvl), point_lvl[:][0], point_lvl[:][1], point_lvl[:][2])
-    if len(point_lvl) == 4:
-        collated += point_lvl[:][3]
-    return collated
+        label.append(i[0].astype(np.uint8))
+        grid_index.append(i[1])
+        pt_label.append(i[2].astype(np.uint8))
+        pt_feature.append(i[3])
+        if len(i) == 5:
+            index.append(i[4])
 
-    # return (np.stack(label), grid_index, pt_label, pt_feature)
+    if index:
+        collated = (np.stack(label), grid_index, pt_label, pt_feature, index)
+    else:
+        collated = (np.stack(label), grid_index, pt_label, pt_feature)
+    return collated
 
 
 def main():
