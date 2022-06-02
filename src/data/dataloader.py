@@ -257,23 +257,35 @@ def label_voting(voxel_label: np.array, sorted_list: list):
     return voxel_label
 
 
-# to handle multi-size point clouds
-def collate_fn(batch, test=False):
-    label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
+# # to handle multi-size point clouds
+# def collate_fn_test(batch):
+#     label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
+#     for i in batch:
+#         label.append(i[0])
+#         grid_index.append(i[1])
+#         pt_label.append(i[2])
+#         pt_feature.append(i[3])
+#         index.append(i[4])
+#     return (np.stack(label), grid_index, pt_label, pt_feature, index)
+
+
+def collate_fn(batch):
+    # label, grid_index, pt_label, pt_feature = [], [], [], []
+    # for i in batch:
+    #     label.append(i[0])
+    #     grid_index.append(i[1])
+    #     pt_label.append(i[2])
+    #     pt_feature.append(i[3])
+    voxel_lvl, point_lvl = [], []
     for i in batch:
-        label.append(i[0])
-        grid_index.append(i[1])
-        pt_label.append(i[2])
-        pt_feature.append(i[3])
-        if test:
-            index.append(i[4])
-
-    collated = (np.stack(label), grid_index, pt_label, pt_feature)
-
-    if test:
-        collated += index
-
+        voxel_lvl.append(i[0])
+        point_lvl.append(i[1:])
+    collated = (np.stack(voxel_lvl), point_lvl[:][0], point_lvl[:][1], point_lvl[:][2])
+    if len(point_lvl) == 4:
+        collated += point_lvl[:][3]
     return collated
+
+    # return (np.stack(label), grid_index, pt_label, pt_feature)
 
 
 def main():

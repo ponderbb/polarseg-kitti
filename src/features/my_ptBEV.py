@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 import torch_scatter
-import torchvision.models as models
 
 from src.features.my_BEV_Unet import Unet
-from src.features.my_FCN_resnet import Resnet_FCN
-from src.features.my_DL_resnet import Resnet_DL
+from src.features.my_DL_resnet import ResNet_DL
+from src.features.my_FCN_resnet import ResNet_FCN
 
 
 class ptBEVnet(nn.Module):
@@ -60,10 +59,10 @@ class ptBEVnet(nn.Module):
             self.backbone = Unet(self.n_class, self.n_height, self.circular_padding)
 
         elif self.backbone_name == "FCN":
-            self.backbone = Resnet_FCN(self.n_class, self.n_height, self.circular_padding)
-            
+            self.backbone = ResNet_FCN(self.n_class, self.n_height, self.circular_padding)
+
         elif self.backbone_name == "DL":
-            self.backbone = Resnet_DL(self.n_class, self.n_height, self.circular_padding)
+            self.backbone = ResNet_DL(self.n_class, self.n_height, self.circular_padding)
 
     def forward(self, pt_fea, xy_ind, device):
         batch_size = len(pt_fea)
@@ -106,7 +105,7 @@ class ptBEVnet(nn.Module):
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
 
         backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
-        
+
         return backbone_fea
 
 
