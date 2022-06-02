@@ -33,7 +33,7 @@ class PolarNetModule(pl.LightningModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
         # setup logging
-        if stage == "test":
+        if stage == "test" or stage == "validate":
             self.config["logging"] = False
 
         if self.config["logging"]:
