@@ -21,7 +21,7 @@ def main(args):
     if polar_model.config["logging"]:
         logger = WandbLogger(project=polar_model.config["wandb_project"], log_model="True", entity="cs492_t13")
     else:
-        logger = None
+        logger = False
 
     trainer = pl.Trainer(
         val_check_interval=polar_model.config["val_check_interval"],

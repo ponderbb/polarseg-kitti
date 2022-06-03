@@ -144,10 +144,11 @@ class PolarNetModule(pl.LightningModule):
 
         prediction = self.model(pt_features_tensor, grid_index_tensor, self.device)
 
-        # NOTE: cite losses
+        # CITATION: loss function [https://github.com/bermanmaxim/LovaszSoftmax]
         cross_entropy_loss = self.loss_function(prediction, vox_label_tensor)
         lovasz_loss = lovasz_softmax(F.softmax(prediction), vox_label_tensor, ignore=255)
         combined_loss = lovasz_loss + cross_entropy_loss
+        # END OF CITATION: loss function
 
         if self.config["logging"]:
             wandb.log({"train_loss": combined_loss})
@@ -155,12 +156,18 @@ class PolarNetModule(pl.LightningModule):
         return combined_loss
 
     def on_test_start(self) -> None:
+        """
+        Generate folder for test labels with the model name. Empty the folder if existing.
+        """
 
         self.inference_path = "models/inference/{}/".format(Path(self.config["model_save_path"]).stem)
 
         utils.inference_dir(self.inference_path)
 
     def test_step(self, batch, batch_idx):
+        """
+        Test loop, saving the predicted labels under the models/inference/<model_name>/sequences/ folder.
+        """
 
         __, grid_index, __, pt_features, index = batch
 
@@ -172,11 +179,8 @@ class PolarNetModule(pl.LightningModule):
 
         for i, __ in enumerate(grid_index):
             pt_pred_label = prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]]
-            pt_pred_label = utils.move_labels(pt_pred_label, 1)
+            pt_pred_label = (np.expand_dims(utils.move_labels(pt_pred_label, 1), axis=1)).astype(np.uint32)
             pt_id = Path(self.out_sequence.scan_list[index[i]]).stem
-            assert pt_id == str(index[i]).zfill(6), "mismatch between load id: {} and write id: {}".format(
-                pt_id, str(index[i]).zfill(6)
-            )
             sequence = Path(self.out_sequence.scan_list[index[i]]).parents[1].stem
             new_file_path = "{}sequences/{}/predictions/{}.label".format(
                 self.inference_path, sequence, str(pt_id).zfill(6)

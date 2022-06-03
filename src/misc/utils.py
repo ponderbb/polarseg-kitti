@@ -8,6 +8,9 @@ import yaml
 
 
 def limit(input, min_bound, max_bound, out_type=int):
+    """
+    limit volume space of point cloud to ROI
+    """
     assert (min_bound < max_bound).all(), "lower and upper volume boundary mismatching"
     return np.minimum(max_bound, np.maximum(input, min_bound))
 
@@ -19,7 +22,9 @@ def getPath(dir):
 
 
 def load_unique_classes(semkitti_yaml):
-
+    """
+    load the unique classes, based on the remapped unique labels
+    """
     semkitti_dict = load_yaml(semkitti_yaml)
 
     labels = np.fromiter(semkitti_dict["learning_map"].values(), dtype=np.int8)
@@ -34,7 +39,8 @@ def load_unique_classes(semkitti_yaml):
 
 def ignore_class(semkitti_yaml):
     """
-    based on semantickitti api, defines the "unlabelled instance (0)
+    based on [https://github.com/PRBonn/semantic-kitti-api]
+    defines the "unlabelled instance (0)
     """
     semkitti_dict = load_yaml(semkitti_yaml)
     for key, value in semkitti_dict["learning_ignore"].items():
@@ -44,7 +50,8 @@ def ignore_class(semkitti_yaml):
 
 def remap_labels(labels, semkitti_dict):
     """
-    based on semantickitti api, remap labels to cross-entropy form
+    based on [https://github.com/PRBonn/semantic-kitti-api]
+    remap labels to cross-entropy form
     """
     new_labels = np.zeros(len(labels), dtype=np.int8)
     for idx, lab in enumerate(labels.squeeze()):
@@ -59,6 +66,10 @@ def load_yaml(file):
 
 
 def move_labels(label, n):
+    """
+    moving unassigned labels from 0 -> 255 for unknown reason
+    according to [https://github.com/edwardzhou130/PolarSeg]
+    """
     if isinstance(label, list):
         return [i + np.uint8(n) for i in label]
     else:

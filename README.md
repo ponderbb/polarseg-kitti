@@ -1,21 +1,22 @@
 polarseg-kitti
 ==============================
 
-Re-implementation of the PolarNet architecture, developed by Zhang et al.
+This repository contains a re-implementation of the PolarNet architecture ([arxiv](https://arxiv.org/abs/2003.14032)), developed by Zhang et al, as a development track project for the CS492 class at KAIST.
 
 ## Initial steps
 
 Start by autoatcially generating an environment for *conda* or *venv* with the following command in the top directory:
-
-`$ make create_environment` 
-
+```shell
+$ make create_environment
+``` 
 After activating this environment, install the requirements:
-
-`$ make requirements`
-
+```shell
+$ make requirements
+```
 Finally, initialize the [pre-commit](https://pre-commit.com/) git hooks:
-
-`$ make lint`
+```shell
+$ make lint
+```
 
 ## Logging
 
@@ -27,57 +28,83 @@ After creating an account, for automatic log-in, copy your API key to the `.env`
 
 > Note: You might need to create the project yourself.
 
+## Commands
+
+### Configuration file
+
+The definition of parameters and identification of IO-s are initialized in a single config file in `config/`. The example configuration is shown in `debug.yaml`, which is default loaded, when calling the following functions. In order to changes details of your training, it is recommended to make a copy of this file and rename it.
+
+> Note: It is not recommended to modify the parameters between training and inference, as the configuration file is shared, hence it might result in mismatching networks (with special attention to the `backbone` and `projection_method`)!
+
+### Training the model
+
+```shell
+python src/models/train_model.py --config <your_config.yaml>
+```
+
+### Testing the model
+
+For testing the model, you should pass the configuration file that it has been created with. The script runs inference with the loaded model on the test set, and saved the labels to `models/inference/<mode_name>/`. `--valid` o runs inference with the loaded model on the validation set and prints the results. The other flag, `--full_process` allows for remapping the saved labels, zip and validate them for submission to the [SemanticKITTI Competition](https://competitions.codalab.org/competitions/20331).
+
+```shell
+python src/models/predict_model.py --config <your_config.yaml> --validate True --full_process True
+```
+
 ## Project Organization
 ------------
 
     ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
+    ├── Makefile           <- Makefile for installing the environment.
     ├── README.md          <- The top-level README for developers using this project.
-    ├── config             <- configuration files for training and dataloaders
+    ├── config             <- configuration files for training, dataloaders and inference
     ├── data
     │   ├── debug          <- Small amount of data separated for debugging purposes.
     |   └── sequences      <- Read more about the data setup in the other README
-    |       ├── 00/           
-    |       ├── velodyne/
-    |       └── labels/
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
+    |       └── 00/           
+    |           ├── velodyne/
+    |           └── labels/
     │
     ├── models             <- Trained and serialized models, model predictions, or model summaries
+    │   ├── <modelname>.pt <- Saved model state-dict instance on best validation mIoU.
+    |   └── inference      <- Test output from inferencing trained model.
+    |       └── <model name>
+    |           └── sequences
+    |               ├── 00/
+    |               └── predictions/
     │
     ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
     │                         the creator's initials, and a short `-` delimited description, e.g.
     │                         `1.0-jqp-initial-data-exploration`.
     │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
+    ├── references         <- Data dictionary for SemanticKITTI dataset and helper functions from 
+    |                         [https://github.com/PRBonn/semantic-kitti-api]
     │
     ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
     │   └── figures        <- Generated graphics and figures to be used in reporting
     │
     ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
     │                         generated with `pip freeze > requirements.txt`
+    ├── .pre-commit-config.yaml <- pre-commit hooks, can be set up by <make lint>
     │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
-    │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
-
+    └── src                <- Source code for use in this project.
+        ├── data           <- Scripts for loading SemKITTI dataset and voxelisation.
+        ├── features       <- Models, losses and feature generation pipeline.
+        ├── misc           <- General function definitions
+        └── models         <- Scripts to train models and then use trained models to make
+            │                 predictions
+            ├── predict_model.py
+            └── train_model.py
 
 --------
+
+## Reference list
+
+The following is a reference list for functions used or inspired by other repositories.
+
+ - `ignore_class, remap labels` <- based on documentation of [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api)
+ - `remap_semantic_labels.py, validate_submission.py, semantic-kitti.yaml` <- copied from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api)
+ - `lovasz_losses.py` <- copied from [Bernman Maxim: LovaszSoftmax](https://github.com/bermanmaxim/LovaszSoftmax)
+ - `grp_range_torch, up_CBR.forward, label_voting, voxel_center` <- copied from [PolarSeg](https://github.com/edwardzhou130/PolarSeg)
+
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>

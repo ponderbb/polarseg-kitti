@@ -1,7 +1,7 @@
 # dataloader configs
-data_dir: "data/debug"
+data_dir: "data"
 projection_type: 'polar'
-semkitti_config: "semantic-kitti.yaml"
+semkitti_config: "references/semantic-kitti.yaml"
 grid_size: [480,360,32] 
 max_vol: [50,50,1.5]
 min_vol: [-50,-50,-3]

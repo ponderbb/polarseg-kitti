@@ -1,5 +1,5 @@
 # This file is covered by the LICENSE file in the root of this project.
-# TODO: Reference to https://github.com/PRBonn/semantic-kitti-api
+# CITATIOn : [https://github.com/PRBonn/semantic-kitti-api]
 labels: 
   0 : "unlabeled"
   1 : "outlier"

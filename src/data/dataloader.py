@@ -21,18 +21,20 @@ class PolarNetDataModule(pl.LightningDataModule):
         else:
             raise FileNotFoundError("Data folder can not be found.")
 
+        self.semkitti_config = self.config["semkitti_config"]
+
         assert self.config["projection_type"] in ["polar", "cartesian", "spherical"], "incorrect projection type"
 
     def setup(self, stage: Optional[str] = None) -> None:
 
         # load the SemanticKITTI dataset
         if stage == "fit" or stage is None:
-            self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train")
-            self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
+            self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train", semkitti_config=self.semkitti_config)
+            self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid", semkitti_config=self.semkitti_config)
         if stage == "validate" or stage is None:
-            self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid")
+            self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid", semkitti_config=self.semkitti_config)
         if stage == "test" or stage is None:
-            self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test")
+            self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test", semkitti_config=self.semkitti_config)
 
         # voxelize the datatset
         if stage == "fit" or stage is None:
@@ -72,9 +74,9 @@ class PolarNetDataModule(pl.LightningDataModule):
 
 
 class SemanticKITTI(Dataset):
-    def __init__(self, data_dir: str, data_split) -> None:
+    def __init__(self, data_dir: str, data_split, semkitti_config) -> None:
         self.data_dir = data_dir
-        self.semkitti_yaml = utils.load_yaml("semantic-kitti.yaml")
+        self.semkitti_yaml = utils.load_yaml(semkitti_config)
         self.data_split = data_split
         self.scan_list = []
         self.label_list = []
