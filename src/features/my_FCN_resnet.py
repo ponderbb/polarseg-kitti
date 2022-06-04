@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.features.layer_functions import Res_block, up_CBR, CBR
+from src.features.layer_functions import Res_block, up_CBR, CBR, reshape_to_voxel
 
 class ResNet_FCN(nn.Module):
     def __init__(self, n_class, n_height, circular_padding):
@@ -12,8 +12,13 @@ class ResNet_FCN(nn.Module):
         self.n_class= n_class
         self.n_height = n_height
 
-        self.conv1 = CBR(in_ch=n_height, out_ch=64, circular_padding=False, filter_size=7, stride=2, padding_size=3)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(n_height, 64, 7, 2, 3),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(inplace=True)
+        )
         self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        
         conv2_in_ch, conv2_mid_ch, conv2_out_ch = [64, 256, 256], [64 for i in range(3)], [256 for i in range(3)]
         layers2 = [Res_block(i, m , o, circular_padding) for i, m , o in zip(conv2_in_ch, conv2_mid_ch, conv2_out_ch)]
         self.conv2_x = nn.Sequential(*layers2)
@@ -30,11 +35,11 @@ class ResNet_FCN(nn.Module):
         layers5 = [Res_block(i, m , o, circular_padding) for i, m , o in zip(conv5_in_ch, conv5_mid_ch, conv5_out_ch)]
         self.conv5_x = nn.Sequential(*layers5)
 
-        self.up1 = up_CBR(in_ch = 4096, out_ch = 1024, circular_padding=self.circular_padding, mode = "FCN")
-        self.up2 = up_CBR(in_ch = 2048, out_ch = 512, circular_padding=self.circular_padding, mode = "FCN")
-        self.up3 = up_CBR(in_ch = 1024, out_ch = 256, circular_padding=self.circular_padding, mode = "FCN")
-        self.up4 = up_CBR(in_ch = 512, out_ch = 64, circular_padding=self.circular_padding, mode = "FCN")
-        self.up5 = up_CBR(in_ch = 128, out_ch = 32, circular_padding=self.circular_padding, mode = "UNet")
+        self.up1 = up_CBR(4096, 1024, self.circular_padding, "FCN")
+        self.up2 = up_CBR(2048,512, self.circular_padding,"FCN")
+        self.up3 = up_CBR(1024,  256, self.circular_padding, "FCN")
+        self.up4 = up_CBR( 512, 64, self.circular_padding,  "FCN")
+        self.up5 = up_CBR(128, 32, self.circular_padding, "UNet")
         self.up6 = nn.ConvTranspose2d(32, 32, 2, stride=2, groups=32)
         self.classifier = nn.Conv2d(32, n_class*n_height, kernel_size=1)
 
@@ -52,7 +57,5 @@ class ResNet_FCN(nn.Module):
         score1 = self.up5(score2, x0)           # 2, 32, 240, 180
         score = self.up6(score1)                # 2, 32, 480, 360
         x = self.classifier(score)              # 2, 32*19, 480, 360
-        x = x.permute(0, 2, 3, 1)
-        class_per_voxel_dim = [x.size()[0], x.size()[1], x.size()[2], self.n_height, self.n_class]
-        x = x.view(class_per_voxel_dim).permute(0, 4, 1, 2, 3)
+        x = reshape_to_voxel(x, self.n_height, self.n_class)
         return x
