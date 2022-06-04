@@ -31,6 +31,7 @@ class PolarNetModule(pl.LightningModule):
         self.loss_function = torch.nn.CrossEntropyLoss(ignore_index=255)
         self.out_sequence = out_sequence
         self.model_name = Path(self.config["model_save_path"]).stem
+        self.inference_path = "models/inference/{}/".format(self.model_name)
 
     def setup(self, stage: Optional[str] = None) -> None:
         # setup logging
@@ -123,10 +124,6 @@ class PolarNetModule(pl.LightningModule):
         if self.profiling:
             self.val_results_dict = {"model_params": sum(param.numel() for param in self.model.parameters())}
             self.inference_time = []
-            print(self.val_results_dict)
-
-            self.inference_path = "models/inference/{}/".format(self.model_name)
-
             utils.inference_dir(self.inference_path)
 
     # executes the per class iou calculations at the end of each validation block

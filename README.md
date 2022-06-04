@@ -44,10 +44,10 @@ python src/models/train_model.py --config <your_config.yaml>
 
 ### Testing the model
 
-For testing the model, you should pass the configuration file that it has been created with. The script runs inference with the loaded model on the validatio set and saves the results into a `<model_name>.txt` file.  `--test`  runs inference with the loaded model on the test set and saved the resulting labels to `models/inference/<mode_name>/`. The other flag, `--full_process` allows for remapping the saved labels, zip and validate them for submission to the [SemanticKITTI Competition](https://competitions.codalab.org/competitions/20331).
+For testing the model, you should pass the configuration file that it has been created with. The script runs inference with the loaded model on the validatio set and saves the results into a `<model_name>.txt` file. Then runs inference with the loaded model on the test set and saved the resulting labels to `models/inference/<mode_name>/`. Fninally, it remaps the saved labels, zip and validate them for submission to the [SemanticKITTI Competition](https://competitions.codalab.org/competitions/20331). Optional flags (`--no-validate, --no-test, --no-prep`) allows for not executing specific blocks.
 
 ```shell
-python src/models/predict_model.py --config <your_config.yaml> --test True --full_process True
+python src/models/predict_model.py --config <your_config.yaml> 
 ```
 
 ## Project Organization
