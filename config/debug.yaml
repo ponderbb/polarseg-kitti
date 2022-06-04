@@ -1,5 +1,5 @@
 # dataloader configs
-data_dir: "data"
+data_dir: "data/debug"
 projection_type: 'polar'
 semkitti_config: "references/semantic-kitti.yaml"
 grid_size: [480,360,32] 
@@ -28,6 +28,6 @@ max_epochs: 30
 sampling: "random"
 
 # logging
-logging: True
+logging: False
 wandb_project: "polarseg-kitti"
 

@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import shutil
@@ -13,6 +14,12 @@ def limit(input, min_bound, max_bound, out_type=int):
     """
     assert (min_bound < max_bound).all(), "lower and upper volume boundary mismatching"
     return np.minimum(max_bound, np.maximum(input, min_bound))
+
+
+def write_dict(file: dict, out_path: str):
+    with open(out_path, "w") as out_file:
+        out_file.write(json.dumps(file))
+        out_file.close()
 
 
 def getPath(dir):

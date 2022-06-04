@@ -30,11 +30,15 @@ class PolarNetModule(pl.LightningModule):
         # define variables based on config file
         self.loss_function = torch.nn.CrossEntropyLoss(ignore_index=255)
         self.out_sequence = out_sequence
+        self.model_name = Path(self.config["model_save_path"]).stem
 
     def setup(self, stage: Optional[str] = None) -> None:
         # setup logging
         if stage == "test" or stage == "validate":
             self.config["logging"] = False
+            self.profiling = True
+        else:
+            self.profiling = False
 
         if self.config["logging"]:
             wandb.config.update(self.config)
@@ -51,7 +55,7 @@ class PolarNetModule(pl.LightningModule):
 
         if stage == "validate" or stage == "test":
             if Path(self.config["model_save_path"]).exists():
-                self.model.load_state_dict(torch.load(self.config["model_save_path"]))
+                self.model.load_state_dict(torch.load(self.config["model_save_path"], map_location=self.device))
             else:
                 raise FileExistsError("No trained model found.")
 
@@ -67,6 +71,10 @@ class PolarNetModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
 
+        if self.profiling:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+
         vox_label, grid_index, pt_label, pt_features = batch
 
         # remap labels from 0->255
@@ -78,7 +86,15 @@ class PolarNetModule(pl.LightningModule):
         pt_features_tensor = [torch.from_numpy(i).type(torch.FloatTensor).to(self.device) for i in pt_features]
         vox_label_tensor = torch.from_numpy(vox_label).type(torch.LongTensor).to(self.device)
 
+        if self.profiling:
+            start.record()
+
         prediction = self.model(pt_features_tensor, grid_index_tensor, self.device)
+
+        if self.profiling:
+            end.record()
+            torch.cuda.synchronize()
+            self.inference_time.append(start.elapsed_time(end))
 
         cross_entropy_loss = self.loss_function(prediction.detach(), vox_label_tensor)
         lovasz_loss = lovasz_softmax(F.softmax(prediction).detach(), vox_label_tensor, ignore=255)
@@ -99,8 +115,19 @@ class PolarNetModule(pl.LightningModule):
 
     # executes at the beggining of every evaluation
     def on_validation_start(self):
+        """
+        Generate folder for test labels with the model name. Empty the folder if existing.
+        """
         self.val_loss_list = []
         self.hist_list = []
+        if self.profiling:
+            self.val_results_dict = {"model_params": sum(param.numel() for param in self.model.parameters())}
+            self.inference_time = []
+            print(self.val_results_dict)
+
+            self.inference_path = "models/inference/{}/".format(self.model_name)
+
+            utils.inference_dir(self.inference_path)
 
     # executes the per class iou calculations at the end of each validation block
     def on_validation_end(self):
@@ -109,6 +136,8 @@ class PolarNetModule(pl.LightningModule):
         for class_name, class_iou in zip(self.unique_class_name, iou):
             if self.config["logging"]:
                 wandb.log({f"{class_name}": class_iou})
+            if self.profiling:
+                self.val_results_dict.update({class_name: (class_iou * 100)})
             print("%s : %.2f%%" % (class_name, class_iou * 100))
         val_miou = np.nanmean(iou) * 100
 
@@ -120,6 +149,12 @@ class PolarNetModule(pl.LightningModule):
 
         if self.config["logging"]:
             wandb.log({"val_miou": val_miou, "best_val_miou": self.best_val_miou})
+        if self.profiling:
+            self.val_results_dict.update({"best_miou": self.best_val_miou})
+            self.val_results_dict.update({"inference": (np.mean(self.inference_time) * (1e-3))})
+            utils.write_dict(
+                self.val_results_dict, "models/inference/{}/results_{}.txt".format(self.model_name, self.model_name)
+            )
 
     # initializations before new training
     def on_train_start(self) -> None:
@@ -154,15 +189,6 @@ class PolarNetModule(pl.LightningModule):
             wandb.log({"train_loss": combined_loss})
         self.loss_list.append(combined_loss.item())
         return combined_loss
-
-    def on_test_start(self) -> None:
-        """
-        Generate folder for test labels with the model name. Empty the folder if existing.
-        """
-
-        self.inference_path = "models/inference/{}/".format(Path(self.config["model_save_path"]).stem)
-
-        utils.inference_dir(self.inference_path)
 
     def test_step(self, batch, batch_idx):
         """
