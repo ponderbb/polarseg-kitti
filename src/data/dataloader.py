@@ -226,8 +226,13 @@ class voxelised_dataset(Dataset):
             voxel_center = (grid_index.astype(float) + 0.5) * step_size + self.min_vol
             centered_coordinate = coordinate - voxel_center
             pt_features = np.concatenate((centered_coordinate, coordinate, reflection.reshape(-1, 1)), axis=1)
+
             if self.config["projection_type"] == "polar":
-                pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
+                if self.config["augmentations"]["9features"]:
+                    pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
+                else:
+                    pt_features = np.concatenate((coordinate, reflection.reshape(-1, 1)), axis=1)
+
 
         if self.data_split == "test":
             voxelised_data = (voxel_label, grid_index, labels, pt_features, index)
