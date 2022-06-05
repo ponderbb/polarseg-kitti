@@ -37,12 +37,14 @@ class ResNet_DL(nn.Module):
         self.ASPP_module = ASPP(2048, 32, 256)
         self.up1 = nn.Upsample(size=(grid_size[0]//4, grid_size[1]//4), mode= 'bilinear')
         self.concat = nn.Conv2d(512, 48, kernel_size=1)
-        self.classifier = nn.Sequential(
-            nn.Conv2d(304, 64, kernel_size=3),
-            nn.Conv2d(64, 64, kernel_size=3),
-            nn.Conv2d(64, self.n_class*self.n_height, kernel_size=1)
+        self.conv = nn.Sequential(
+            nn.Conv2d(304,256,3,1,bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 32, 1)
         )
         self.up2 = nn.Upsample(size=(grid_size[0], grid_size[1]), mode= 'bilinear')
+        self.classifier = nn.Conv2d(32, n_class*n_height, kernel_size=1)
 
     def forward(self,x):                        # 2, 32, 480, 360
         x1 = self.conv1(x)                      # 2, 64, 240, 180
@@ -50,10 +52,11 @@ class ResNet_DL(nn.Module):
         x3 = self.conv3_x(x2)                   # 2, 512, 120, 90
         x4 = self.conv4_x(x3)                   # 2, 1024, 60,45
         x5 = self.conv5_x(x4)                   # 2, 2048, 30,23
-        out1 = self.up1(self.ASPP_module(x5))    # 2, 256, 120, 90
-        out2 = self.concat(x3)                    # 2, 48, 120, 90
+        out1 = self.up1(self.ASPP_module(x5))   # 2, 256, 120, 90
+        out2 = self.concat(x3)                  # 2, 48, 120, 90
         x = torch.cat([out1, out2], 1)          # 2, 304, 120, 90
-        x = self.up2(self.classifier(x))
+        x = self.up2(self.conv(x))
+        x = self.classifier(x)
         x = reshape_to_voxel(x, self.n_height, self.n_class)
         return x
 
