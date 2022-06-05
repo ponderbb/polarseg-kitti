@@ -6,7 +6,13 @@ import torch.nn.functional as F
 from src.features.layer_functions import Res_block, reshape_to_voxel
 
 class ResNet_DL(nn.Module):
-    def __init__(self, n_class, n_height, circular_padding, grid_size):
+    def __init__(
+        self, 
+        n_class, 
+        n_height, 
+        circular_padding, 
+        grid_size
+        ):
         super(ResNet_DL, self).__init__()
         self.circular_padding = circular_padding
         self.n_class= n_class
