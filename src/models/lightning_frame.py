@@ -56,6 +56,7 @@ class PolarNetModule(pl.LightningModule):
             n_class=self.unique_class_idx,
             circular_padding=self.config["augmentations"]["circular_padding"],
             sampling=self.config["sampling"],
+            nine_feature = self.config["augmentations"]["9features"]
         )
 
         # for inference, load state_dict from the <model_name>.pt instance
