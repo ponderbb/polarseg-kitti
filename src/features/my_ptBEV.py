@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torch_scatter
+import numpy as np
+from numba import jit
 
 from src.features.my_BEV_Unet import Unet
-from src.features.my_DL_resnet import ResNet_DL
 from src.features.my_FCN_resnet import ResNet_FCN
-
+from src.features.my_DL_resnet import ResNet_DL
 
 class ptBEVnet(nn.Module):
     def __init__(
@@ -18,6 +19,7 @@ class ptBEVnet(nn.Module):
         out_pt_fea_dim=512,
         max_pt_per_encode=256,
         circular_padding=False,
+        nine_feature = True
     ):
         super(ptBEVnet, self).__init__()
 
@@ -34,7 +36,10 @@ class ptBEVnet(nn.Module):
         if projection_type in ["cartesian", "spherical"]:
             fea_dim = 7
         elif projection_type == "polar":
-            fea_dim = 9
+            if nine_feature :
+                fea_dim = 9
+            else :
+                fea_dim = 3
         else:
             AssertionError, "incorrect projection type"
 
@@ -62,11 +67,12 @@ class ptBEVnet(nn.Module):
             self.backbone = ResNet_FCN(self.n_class, self.n_height, self.circular_padding)
 
         elif self.backbone_name == "DL":
-            self.backbone = ResNet_DL(self.n_class, self.n_height, self.circular_padding, grid_size)
+            self.backbone = ResNet_DL(self.n_class, self.n_height, self.circular_padding, self.grid_size)
 
     def forward(self, pt_fea, xy_ind, device):
         batch_size = len(pt_fea)
-
+        backbone_input_dim = [batch_size] + self.grid_size
+        backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(device)
         fea, ind = [], []
         num = 0
         for i in range(batch_size):
@@ -80,6 +86,12 @@ class ptBEVnet(nn.Module):
         random_ind = torch.randperm(num, device=device)
         fea, ind = torch.index_select(fea, dim=0, index=random_ind), torch.index_select(ind, dim=0, index=random_ind)
         unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
+        #x_sort_ind = ind[ind[:,1].sort()[1]]
+        #sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
+        #unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
+        #unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
+        #unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
+        #unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
 
         if self.sampling:
             # TODO: cite this
@@ -90,16 +102,12 @@ class ptBEVnet(nn.Module):
             unq_inv = unq_inv[remain_ind]
             unq_cnt = torch.clamp(unq_cnt, max=self.max_pt)
 
-        # TODO: cite this
-        backbone_input_dim = [batch_size, self.grid_size[0], self.grid_size[1], self.n_height]
-        backbone_data = torch.zeros(backbone_input_dim, dtype=torch.float32).to(device)
         pointnet_fea = self.PointNet(fea)
 
-        max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
-        # max_pointnet_fea = []
-        # for i in range(len(unq)):
-        #    max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
-        # max_pointnet_fea = torch.stack(max_pointnet_fea)
+        max_pointnet_fea = []
+        for i in range(len(unq)):
+           max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
+        max_pointnet_fea = torch.stack(max_pointnet_fea)
 
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
@@ -108,10 +116,34 @@ class ptBEVnet(nn.Module):
 
         return backbone_fea
 
-
 def grp_range_torch(a, dev):
     idx = torch.cumsum(a, 0)
     id_arr = torch.ones(idx[-1], dtype=torch.int64, device=dev)
     id_arr[0] = 0
     id_arr[idx[:-1]] = -a[:-1] + 1
     return torch.cumsum(id_arr, 0)
+
+@jit(nopython=True)
+def index_sort(sort_ind, xy_ind, pt_num):
+    unq = [sort_ind[0]]
+    unq_cnt = []
+    count = 0
+    for ind in sort_ind:
+        if ind[0] == unq[-1][0] and ind[1] == unq[-1][1]:
+            count += 1
+        else:
+            unq.append(ind)
+            unq_cnt.append(count)
+            count = 1
+    unq_cnt.append(count)
+    unq_inv = [0 for i in range(pt_num)]
+    for i, ind in enumerate(unq):
+        boolen = np.where(xy_ind == ind, True, False)
+        condition = []
+        for j, boo in enumerate(boolen):
+            tf = np.all(boo)
+            if tf:
+                condition.append(j)
+        for cond in condition:
+            unq_inv[cond] = i
+    return unq, unq_inv, unq_cnt
