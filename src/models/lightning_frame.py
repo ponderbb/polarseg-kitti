@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,6 +13,8 @@ import src.misc.utils as utils
 import wandb
 from src.features.lovasz_losses import lovasz_softmax
 from src.features.my_ptBEV import ptBEVnet
+
+warnings.filterwarnings("ignore")
 
 
 class PolarNetModule(pl.LightningModule):
@@ -103,13 +106,14 @@ class PolarNetModule(pl.LightningModule):
         prediction = torch.argmax(prediction, dim=1)
         prediction = prediction.detach().cpu().numpy()
         for i, __ in enumerate(grid_index):
-            self.hist_list.append(
-                utils.fast_hist_crop(
-                    prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]],
-                    pt_label[i],
-                    self.unique_class_idx,
-                )
+            cm = utils.conf_mat_generator(
+                prediction=prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]].flatten(),
+                label=pt_label[i].flatten(),
+                classes=self.unique_class_idx,
+                ignore_class=255,
             )
+            self.confusion_matrix_sum = np.add(self.confusion_matrix_sum, cm)
+
         if self.config["logging"]:
             wandb.log({"val_loss": combined_loss})
         self.val_loss_list.append(combined_loss.detach().cpu().numpy())
@@ -121,6 +125,7 @@ class PolarNetModule(pl.LightningModule):
         """
         self.val_loss_list = []
         self.hist_list = []
+        self.confusion_matrix_sum = np.zeros((len(self.unique_class_idx), len(self.unique_class_idx)), dtype=np.int32)
         if self.profiling:
             self.val_results_dict = {"model_params": sum(param.numel() for param in self.model.parameters())}
             self.inference_time = []
@@ -128,15 +133,14 @@ class PolarNetModule(pl.LightningModule):
 
     # executes the per class iou calculations at the end of each validation block
     def on_validation_end(self):
-        # TODO: cite miou
-        iou = utils.per_class_iu(sum(self.hist_list))
+        iou = utils.class_iou(self.confusion_matrix_sum)
         for class_name, class_iou in zip(self.unique_class_name, iou):
             if self.config["logging"]:
                 wandb.log({f"{class_name}": class_iou})
             if self.profiling:
-                self.val_results_dict.update({class_name: (class_iou * 100)})
-            print("%s : %.2f%%" % (class_name, class_iou * 100))
-        val_miou = np.nanmean(iou) * 100
+                self.val_results_dict.update({class_name: (class_iou)})
+            print("%s : %.2f%%" % (class_name, class_iou))
+        val_miou = np.nanmean(iou)
 
         # save model if performance is improved
         if self.best_val_miou < val_miou:

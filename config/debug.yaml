@@ -1,6 +1,6 @@
 # dataloader configs
 data_dir: "data/debug"
-projection_type: 'polar'
+projection_type: 'cartesian'
 semkitti_config: "references/semantic-kitti.yaml"
 grid_size: [480,360,32] 
 max_vol: [50,50,1.5]
@@ -24,7 +24,7 @@ LARS: False
 num_workers: 4
 lr_rate: 0.02
 val_check_interval: 500
-max_epochs: 30
+max_epochs: 20
 sampling: "random"
 
 # logging

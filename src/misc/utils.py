@@ -7,6 +7,8 @@ import numpy as np
 import yaml
 from sklearn.metrics import confusion_matrix
 
+np.seterr(invalid="ignore")  # resolve true divide warning
+
 
 def limit(input, min_bound, max_bound, out_type=int):
     """
@@ -124,26 +126,23 @@ def convert2polar(xyz):
     return np.stack((r, theta, z), axis=1)
 
 
-# TODO: cite or replace
-def fast_hist(pred, label, n):
-    k = (label >= 0) & (label < n)
-    bin_count = np.bincount(n * label[k].astype(int) + pred[k], minlength=n**2)
-    return bin_count[: n**2].reshape(n, n), label[k], pred[k]
+def conf_mat_generator(prediction, label, classes, ignore_class):
+    """
+    generate keras [classes, classes] dimensional confusion matrix,
+    based on the results with valid labels (ignore = 255)
+    """
+    ignore_idx = label != ignore_class
+    return confusion_matrix(label[ignore_idx], prediction[ignore_idx], labels=classes)
 
 
-# TODO: cite or replace
-def per_class_iu(hist):
-    return np.diag(hist) / (hist.sum(1) + hist.sum(0) - np.diag(hist))
-
-
-# TODO: cite or replace
-def fast_hist_crop(output, target, unique_label):
-    hist, label, pred = fast_hist(output.flatten(), target.flatten(), np.max(unique_label) + 1)
-    hist = hist[unique_label, :]
-    hist = hist[:, unique_label]
-    cm = confusion_matrix(label, pred, labels=unique_label)
-    assert np.all(cm == hist), "error in paradise"
-    return hist
+def class_iou(cm):
+    """
+    Calculate intersection over union from confusion matrix, where diagonal holds the true positives (TP).
+    IoU = TP / (TP+FP+FN) -> summing along the axis, we get the TP twice in the denominator!
+    """
+    intersection = cm.diagonal()
+    union = cm.sum(0) - cm.diagonal() + cm.sum(1)
+    return (intersection / union) * 100
 
 
 def inference_dir(inference_path=str):

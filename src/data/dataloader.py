@@ -168,8 +168,6 @@ class voxelised_dataset(Dataset):
             self.min_vol = np.amin(coordinate, axis=0)
 
         if self.config["projection_type"] == "spherical":
-            # TODO: pack it up into helper functions
-
             point_num = len(coordinate)
 
             # laser parameters
@@ -231,8 +229,7 @@ class voxelised_dataset(Dataset):
                 if self.config["augmentations"]["9features"]:
                     pt_features = np.concatenate((pt_features, coordinate_xy), axis=1)
                 else:
-                    pt_features = np.concatenate((coordinate, reflection.reshape(-1, 1)), axis=1)
-
+                    pt_features = np.concatenate((coordinate[:, :2], reflection.reshape(-1, 1)), axis=1)
 
         if self.data_split == "test":
             voxelised_data = (voxel_label, grid_index, labels, pt_features, index)
