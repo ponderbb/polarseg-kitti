@@ -19,12 +19,18 @@ def limit(input, min_bound, max_bound, out_type=int):
 
 
 def write_dict(file: dict, out_path: str):
+    """
+    dump dictionary into .txt file
+    """
     with open(out_path, "w") as out_file:
         out_file.write(json.dumps(file))
         out_file.close()
 
 
 def getPath(dir):
+    """
+    get full path for files in passed folder
+    """
     for root, _, files in os.walk(dir):
         for f in files:
             yield str(Path(os.path.join(root, f)))
@@ -150,3 +156,20 @@ def inference_dir(inference_path=str):
     initialize empty directory for output labels, with the name of the model
     """
     os.makedirs(inference_path, exist_ok=True)
+
+
+def collate_fn(batch):
+    label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
+    for i in batch:
+        label.append(i[0].astype(np.uint8))
+        grid_index.append(i[1])
+        pt_label.append(i[2].astype(np.uint8))
+        pt_feature.append(i[3])
+        if len(i) == 5:
+            index.append(i[4])
+
+    if index:
+        collated = (np.stack(label), grid_index, pt_label, pt_feature, index)
+    else:
+        collated = (np.stack(label), grid_index, pt_label, pt_feature)
+    return collated

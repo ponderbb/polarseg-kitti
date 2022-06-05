@@ -12,22 +12,32 @@ import src.misc.utils as utils
 class PolarNetDataModule(pl.LightningDataModule):
     def __init__(self, config_name: str = "debug.yaml"):
         super().__init__()
+
+        # load configuration file
         if Path("config/" + config_name).exists():
             self.config = utils.load_yaml("config/" + config_name)
         else:
             raise FileNotFoundError("Config file can not be found.")
+
+        # define data folder
         if Path(self.config["data_dir"]).exists():
             self.data_dir = self.config["data_dir"]
         else:
             raise FileNotFoundError("Data folder can not be found.")
 
+        # define path to semantic-kitti.yaml [source: semantic-kitti-api]
         self.semkitti_config = self.config["semkitti_config"]
 
+        # failsafe for training logic
         assert self.config["projection_type"] in ["polar", "cartesian", "spherical"], "incorrect projection type"
 
     def setup(self, stage: Optional[str] = None) -> None:
 
-        # load the SemanticKITTI dataset
+        """
+        initialization of dataset, stage is defined when calling with the trainer object
+        """
+
+        # initialization of pytroch dataset object: raw -> SemanticKITTI
         if stage == "fit" or stage is None:
             self.semkitti_train = SemanticKITTI(self.data_dir, data_split="train", semkitti_config=self.semkitti_config)
             self.semkitti_valid = SemanticKITTI(self.data_dir, data_split="valid", semkitti_config=self.semkitti_config)
@@ -36,7 +46,7 @@ class PolarNetDataModule(pl.LightningDataModule):
         if stage == "test" or stage is None:
             self.semkitti_test = SemanticKITTI(self.data_dir, data_split="test", semkitti_config=self.semkitti_config)
 
-        # voxelize the datatset
+        # initialization of pytroch dataset object: SemanticKITTI -> voxelized
         if stage == "fit" or stage is None:
             self.voxelised_train = voxelised_dataset(self.config, self.semkitti_train, data_split="train")
             self.voxelised_valid = voxelised_dataset(self.config, self.semkitti_valid, data_split="valid")
@@ -48,7 +58,7 @@ class PolarNetDataModule(pl.LightningDataModule):
     def train_dataloader(self):
         return DataLoader(
             self.voxelised_train,
-            collate_fn=collate_fn,
+            collate_fn=utils.collate_fn,
             shuffle=True,
             batch_size=self.config["train_batch"],
             num_workers=self.config["num_workers"],
@@ -57,7 +67,7 @@ class PolarNetDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.voxelised_valid,
-            collate_fn=collate_fn,
+            collate_fn=utils.collate_fn,
             shuffle=False,
             batch_size=self.config["valid_batch"],
             num_workers=self.config["num_workers"],
@@ -66,7 +76,7 @@ class PolarNetDataModule(pl.LightningDataModule):
     def test_dataloader(self):
         return DataLoader(
             self.voxelised_test,
-            collate_fn=collate_fn,
+            collate_fn=utils.collate_fn,
             shuffle=False,
             batch_size=self.config["test_batch"],
             num_workers=self.config["num_workers"],
@@ -74,6 +84,10 @@ class PolarNetDataModule(pl.LightningDataModule):
 
 
 class SemanticKITTI(Dataset):
+    """
+    Loading Semantic KITTI dataset, from .bin and .label files.
+    """
+
     def __init__(self, data_dir: str, data_split, semkitti_config) -> None:
         self.data_dir = data_dir
         self.semkitti_yaml = utils.load_yaml(semkitti_config)
@@ -101,6 +115,7 @@ class SemanticKITTI(Dataset):
         return len(self.scan_list)
 
     def __getitem__(self, index):
+
         # scan is containing the (x,y,z, reflection)
         scan = np.fromfile(self.scan_list[index], dtype=np.float32).reshape(-1, 4)
 
@@ -109,15 +124,32 @@ class SemanticKITTI(Dataset):
             labels = np.zeros(shape=scan[:, 0].shape, dtype=int)
         else:
             labels = np.fromfile(self.label_list[index], dtype=np.int32).reshape(-1, 1)
-            labels = labels & 0xFFFF  # cut upper half of the binary (source: semkittiAPI)
+            labels = labels & 0xFFFF  # cut upper half of the binary [source: semantic-kitti-api]
             labels = utils.remap_labels(labels, self.semkitti_yaml).reshape(
                 -1, 1
-            )  # remap to cross-entropy labels (source: semkittiAPI)
+            )  # remap to cross-entropy labels [source: semantic-kitti-api]
 
         return (scan, labels)
 
 
 class voxelised_dataset(Dataset):
+    """
+    Voxelization process of Semantic KITTI dataset, including augmentations and projection methods.
+
+    Point feature variations, based on projection:
+
+    1. Cartesian projection: ((x_offset, y_offset, z_offset), (x,y,z), reflection)
+    2. Polar projection: ((rho_offset, theta_offset, z_offset), (rho, theta, z), (x, y), reflection)
+    3. Polar projection [9features=False]: ((rho, theta), reflection)
+    4. Sphercial projection: ((x_offset, y_offset, z_offset), (x,y,z), reflection)
+
+    The residual distances (offset points) has been vaguely mentioned in the paper,
+    therefore we have used the author's implementation from https://github.com/edwardzhou130/PolarSeg.
+
+    After unsuccessful re-implementation, due to computational inefficiency, the voxel-label voting
+    has been copied from https://github.com/edwardzhou130/PolarSeg
+    """
+
     def __init__(
         self,
         config: dict,
@@ -143,11 +175,12 @@ class voxelised_dataset(Dataset):
 
     def __getitem__(self, index):
 
-        # extrat data
+        # extract data
         data, labels = self.dataset[index]
         coordinate = data[:, :3]
         reflection = data[:, 3]
 
+        # random flip
         if self.config["augmentations"]["flip"]:
             coordinate = utils.random_flip(coordinate)
 
@@ -155,8 +188,9 @@ class voxelised_dataset(Dataset):
         if self.config["augmentations"]["rot"]:
             coordinate = utils.random_rot(coordinate)
 
+        # change projection to polar
         if self.config["projection_type"] == "polar":
-            coordinate_xy = coordinate[:, :2].copy()  # copy 2 cartesian coordinates for the 7->9 features
+            coordinate_xy = coordinate[:, :2].copy()  # copy 2 cartesian coordinates for the 9features
             coordinate = utils.convert2polar(coordinate)
 
         # limit voxels to certain volume space
@@ -202,27 +236,30 @@ class voxelised_dataset(Dataset):
             grid_index = np.concatenate(([grid_xy_ind, grid_z_ind]), axis=1).astype(np.int)
 
         else:
-            step_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
+            # calculate the size of each voxel
+            voxel_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
 
             # calculate the grid index for each point
-            grid_index = np.floor((coordinate_limited - self.min_vol) / step_size).astype(int)
+            grid_index = np.floor((coordinate_limited - self.min_vol) / voxel_size).astype(int)
 
-        # process the labels and vote for one per voxel #TODO: cite
+        # CITATION: voxel-label voting from https://github.com/edwardzhou130/PolarSeg
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
         raw_point_label = np.concatenate([grid_index, labels.reshape(-1, 1)], axis=1)
         sorted_point_label = raw_point_label[
             np.lexsort((grid_index[:, 0], grid_index[:, 1], grid_index[:, 2])), :
         ].astype(np.int64)
         voxel_label = label_voting(np.copy(voxel_label), sorted_point_label)
+        # END OF CITATION: voxel-label voting
 
         if self.config["projection_type"] == "spherical":
             proj_xy = np.concatenate((proj_h.reshape(point_num, 1), proj_w.reshape(point_num, 1)), axis=1)
             proj_xyz = np.concatenate((proj_xy, depth), axis=1)
             pt_features = np.concatenate((proj_xyz, coordinate, reflection.reshape(-1, 1)), axis=1)
         else:
-            # center points on voxel # TODO: cite, not defined in the paper
-            voxel_center = (grid_index.astype(float) + 0.5) * step_size + self.min_vol
+            # CITATION: residual distances from https://github.com/edwardzhou130/PolarSeg
+            voxel_center = (grid_index.astype(float) + 0.5) * voxel_size + self.min_vol
             centered_coordinate = coordinate - voxel_center
+            # END OF CITATION: residual distances
             pt_features = np.concatenate((centered_coordinate, coordinate, reflection.reshape(-1, 1)), axis=1)
 
             if self.config["projection_type"] == "polar":
@@ -242,7 +279,8 @@ class voxelised_dataset(Dataset):
         voxel_label: voxel-level label
         grid_index: individual point's grid index
         labels: individual point's label
-        pt_features: [centered coordinate, coordinate, reflection]
+        pt_features: [varies based on projection]
+        [index]: only for testing
         """
 
         return voxelised_data
@@ -250,7 +288,7 @@ class voxelised_dataset(Dataset):
 
 @jit("u1[:,:,:](u1[:,:,:],i8[:,:])", nopython=True, cache=True, parallel=False)
 def label_voting(voxel_label: np.array, sorted_list: list):
-    # TODO: cite
+    # CITATION: voxel-label voting from https://github.com/edwardzhou130/PolarSeg
     label_counter = np.zeros((256,), dtype=np.uint)
     label_counter[sorted_list[0, 3]] = 1
     compare_label_a = sorted_list[0, :3]
@@ -263,23 +301,6 @@ def label_voting(voxel_label: np.array, sorted_list: list):
         label_counter[sorted_list[i, 3]] += 1
     voxel_label[compare_label_a[0], compare_label_a[1], compare_label_a[2]] = np.argmax(label_counter)
     return voxel_label
-
-
-def collate_fn(batch):
-    label, grid_index, pt_label, pt_feature, index = [], [], [], [], []
-    for i in batch:
-        label.append(i[0].astype(np.uint8))
-        grid_index.append(i[1])
-        pt_label.append(i[2].astype(np.uint8))
-        pt_feature.append(i[3])
-        if len(i) == 5:
-            index.append(i[4])
-
-    if index:
-        collated = (np.stack(label), grid_index, pt_label, pt_feature, index)
-    else:
-        collated = (np.stack(label), grid_index, pt_label, pt_feature)
-    return collated
 
 
 def main():

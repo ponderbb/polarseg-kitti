@@ -104,7 +104,8 @@ The following is a reference list for functions used or inspired by other reposi
  - `ignore_class, remap labels` <- based on documentation of [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api)
  - `remap_semantic_labels.py, validate_submission.py, semantic-kitti.yaml` <- copied from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api)
  - `lovasz_losses.py` <- copied from [Bernman Maxim: LovaszSoftmax](https://github.com/bermanmaxim/LovaszSoftmax)
- - `grp_range_torch, polar_CBR.forward, label_voting, voxel_center` <- copied from [PolarSeg](https://github.com/edwardzhou130/PolarSeg)
+ - `grp_range_torch, polar_CBR.forward, label_voting, residual_distances` <- copied from [PolarSeg](https://github.com/edwardzhou130/PolarSeg)
+
 
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
