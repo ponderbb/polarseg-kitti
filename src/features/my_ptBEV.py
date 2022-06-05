@@ -42,7 +42,8 @@ class ptBEVnet(nn.Module):
                 fea_dim = 3
         else:
             AssertionError, "incorrect projection type"
-
+        
+        # CITATION: Simplified pointnet structure from https://github.com/edwardzhou130/PolarSeg
         self.PointNet = nn.Sequential(
             nn.BatchNorm1d(fea_dim),
             nn.Linear(fea_dim, 64),
@@ -85,16 +86,17 @@ class ptBEVnet(nn.Module):
 
         random_ind = torch.randperm(num, device=device)
         fea, ind = torch.index_select(fea, dim=0, index=random_ind), torch.index_select(ind, dim=0, index=random_ind)
-        unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
-        #x_sort_ind = ind[ind[:,1].sort()[1]]
-        #sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
-        #unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
-        #unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
-        #unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
-        #unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
+        
+        # unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
+        x_sort_ind = ind[ind[:,1].sort()[1]]
+        sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
+        unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
+        unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
+        unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
+        unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
 
         if self.sampling:
-            # TODO: cite this
+            # CITATION: random sampling from https://github.com/edwardzhou130/PolarSeg
             grp_ind = grp_range_torch(unq_cnt, device)[torch.argsort(torch.argsort(unq_inv))]
             remain_ind = grp_ind < self.max_pt
             fea = fea[remain_ind, :]
@@ -108,7 +110,7 @@ class ptBEVnet(nn.Module):
         for i in range(len(unq)):
            max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
         max_pointnet_fea = torch.stack(max_pointnet_fea)
-
+        
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
 
