@@ -80,6 +80,7 @@ class polar_CBR(nn.Module):
         )
 
     def forward(self, x):
+        # CITATION: circular padding from https://github.com/edwardzhou130/PolarSeg
         x = F.pad(x,(self.padding,self.padding,0,0),mode = 'circular')
         x = self.cbr1(x)
         if self.double_version :
@@ -155,9 +156,11 @@ class up_CBR(nn.Module):
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
+        
         up_error_x, up_error_y = x2.size()[3] - x1.size()[3], x2.size()[2] - x1.size()[2]
         left_padding, right_padding = up_error_x//2, up_error_x - up_error_x//2
         up_padding, down_padding = up_error_y//2, up_error_y - up_error_y//2
+        
         x1 = F.pad(x1, (left_padding, right_padding, up_padding, down_padding))
 
         x = torch.cat([x2, x1], dim=1)
