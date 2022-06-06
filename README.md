@@ -100,8 +100,8 @@ python src/models/predict_model.py --config <your_config.yaml>
 The black marks indicate the voxel origins and the gray dots are unlabbeled. On these examples, 10x more spares grid cells are used for better visualization $[48,36]$
 
 <p float="left">
-  <img src="/reports/figures/cartesianBEVexample.png" width="200" />
-  <img src="/reports/figures/polarBEVexample.pn" width="200" /> 
+  <img src="/reports/figures/cartesianBEVexample.png" width="350" />
+  <img src="/reports/figures/polarBEVexample.pn" width="350" /> 
 </p>
 
 
