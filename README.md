@@ -139,7 +139,7 @@ The following is a reference list for functions used or inspired by other reposi
  - `remap_semantic_labels.py, validate_submission.py, semantic-kitti.yaml` <- copied from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api)
  - `lovasz_losses.py` <- copied from [Bernman Maxim: LovaszSoftmax](https://github.com/bermanmaxim/LovaszSoftmax)
  - `grp_range_torch, polar_CBR.forward, label_voting, residual_distances` <- copied from [PolarSeg](https://github.com/edwardzhou130/PolarSeg)
- - 'calculate fov, depth, yaw and pitch for spherical projection' <= copied from [RangeNet++](https://github.com/PRBonn/lidar-bonnetal/blob/master/train/common/laserscan.py)
+ - `calculate fov, depth, yaw and pitch for spherical projection` <- copied from [RangeNet++](https://github.com/PRBonn/lidar-bonnetal/blob/master/train/common/laserscan.py)
 
 Citation for the original paper:
 
