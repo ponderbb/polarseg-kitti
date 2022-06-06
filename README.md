@@ -4,6 +4,8 @@ polarseg-kitti
 This repository contains a PyTorch Lightning re-implementation of the PolarNet architecture ([arxiv](https://arxiv.org/abs/2003.14032)), published by Zhang et al. It is a Development Track term project for the CS492 course at KAIST.
 
 
+>IMPORTANT: [Google Drive](https://drive.google.com/drive/folders/1oS-Vf8lk0nuy8bdu8guZxSqQILFmxuON?usp=sharing) for supplementary materials, pre-trained models and resuls.
+
 ## Initial steps
 
 Start by autoatcially generating an environment for *conda* or *venv* with the following command in the top directory:
@@ -108,14 +110,16 @@ The black marks indicate the voxel origins for limited volume space and the gray
 
 ## Experimental results
 
-> Note: *Paper* refers to the test results of the original paper from Zhang et al.
+> IMPORTANT: All our experimental results and pre-trained models are publicly available on the following [google drive link](https://drive.google.com/drive/folders/1oS-Vf8lk0nuy8bdu8guZxSqQILFmxuON?usp=sharing).
+
+*Paper* refers to the test results of the original paper from Zhang et al.
 
 ![Validation results](reports/figures/Segmentation%20results%20on%20validation%20split%20of%20SemanticKITTI.png)
 
 ![Test set results](reports/figures/Segmentation%20results%20on%20test%20split%20of%20SemanticKITTI.png)
 
 
->Note: The following figures is created based on results from the `evaluate_semantics_by_distance.py` and `visualize_voxels.py` from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api).
+>Note: The following figures are generated (based on data) from the `evaluate_semantics_by_distance.py` and `visualize_voxels.py` scripts from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api).
 
 
 <p float="left">
