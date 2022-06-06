@@ -87,13 +87,13 @@ class ptBEVnet(nn.Module):
         random_ind = torch.randperm(num, device=device)
         fea, ind = torch.index_select(fea, dim=0, index=random_ind), torch.index_select(ind, dim=0, index=random_ind)
         
-        # unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
-        x_sort_ind = ind[ind[:,1].sort()[1]]
-        sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
-        unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
-        unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
-        unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
-        unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
+        unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
+        #x_sort_ind = ind[ind[:,1].sort()[1]]
+        #sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
+        #unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
+        #unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
+        #unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
+        #unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
 
         if self.sampling:
             # CITATION: random sampling from https://github.com/edwardzhou130/PolarSeg
