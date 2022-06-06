@@ -205,7 +205,7 @@ class voxelised_dataset(Dataset):
         if self.config["projection_type"] == "spherical":
             point_num = len(coordinate)
 
-            # laser parameters
+            # CITATION: calculating fov, depth, yaw and pitch from https://github.com/PRBonn/lidar-bonnetal/blob/master/train/common/laserscan.py
             fov_up = self.proj_fov_up / 180.0 * np.pi
             fov_down = self.proj_fov_down / 180.0 * np.pi
             fov = abs(fov_down) + abs(fov_up)
