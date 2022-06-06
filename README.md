@@ -97,14 +97,16 @@ python src/models/predict_model.py --config <your_config.yaml>
 
 > Note: label colors are just visualization, just similar, but not accurate to the [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api) defined ones.
 
-<tr>
+The black marks indicate the voxel origins and the gray dots are unlabbeled.
+
+<!-- <tr>
 <td> <img src="/reports/figures/cartesianBEVexample.png" alt="Drawing" style="width: 250px;"/> </td>
 <td> <img src="/reports/figures/polarBEVexample.png" alt="Drawing" style="width: 250px;"/> </td>
-</tr>
+</tr> -->
 
 <!-- ![Cartesian Projection BEV](/reports/figures/cartesianBEVexample.png) | ![Polar Projection BEV](/reports/figures/polarBEVexample.png) -->
 
-<!-- <img src="/reports/figures/cartesianBEVexample.png" width="425"/> <img src="/reports/figures/polarBEVexample.png" width="425"/>  -->
+<img src="/reports/figures/cartesianBEVexample.png" width="425"/> <img src="/reports/figures/polarBEVexample.png" width="425"/> 
 
 
 
