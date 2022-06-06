@@ -1,0 +1,33 @@
+# dataloader configs
+data_dir: "/home/jumin/Dataset/dataset"
+projection_type: 'polar'
+semkitti_config: "references/semantic-kitti.yaml"
+grid_size: [480,360,32] 
+max_vol: [50,3.14,1.5]
+min_vol: [3,-3.14,-3]
+
+# augmentations
+augmentations:
+  fixed_vol: True
+  flip: True
+  rot: True
+  9features: True
+  circular_padding: True
+
+#training configs
+model_save_path: "models/UNet_polar.pt"
+backbone: "UNet"
+train_batch: 2
+valid_batch: 2
+test_batch: 1
+LARS: False
+num_workers: 4
+lr_rate: 0.02
+val_check_interval: 4000
+max_epochs: 20
+sampling: "random"
+gpu: 1
+
+# logging
+logging: False
+wandb_project: "polarseg-kitti"
