@@ -68,12 +68,12 @@ class polar_CBR(nn.Module):
         self.stride = stride
         self.padding = padding
 
-        self.cbr1 = nn.Sequential(
+        self.conv1 = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, self.kernel_size, self.stride, (self.padding,0)),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(inplace=True)
         )
-        self.cbr2 = nn.Sequential(
+        self.conv2 = nn.Sequential(
             nn.Conv2d(out_ch, out_ch, self.kernel_size, self.stride, (self.padding,0)),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(inplace=True)
@@ -82,10 +82,10 @@ class polar_CBR(nn.Module):
     def forward(self, x):
         # CITATION: circular padding from https://github.com/edwardzhou130/PolarSeg
         x = F.pad(x,(self.padding,self.padding,0,0),mode = 'circular')
-        x = self.cbr1(x)
+        x = self.conv1(x)
         if self.double_version :
             x = F.pad(x,(self.padding,self.padding,0,0),mode = 'circular')
-            x = self.cbr2(x)
+            x = self.conv2(x)
         return x
 
 class CBR(nn.Module):
@@ -95,21 +95,21 @@ class CBR(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        self.cbr1 = nn.Sequential(
+        self.conv1 = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, self.kernel_size, self.stride, self.padding),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(inplace=True)
         )
-        self.cbr2 = nn.Sequential(
+        self.conv2 = nn.Sequential(
             nn.Conv2d(out_ch, out_ch, self.kernel_size, self.stride, self.padding),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(inplace=True)
         )
 
     def forward(self, x):
-        x = self.cbr1(x)
+        x = self.conv2(x)
         if self.double_version:
-            x = self.cbr2(x)
+            x = self.conv2(x)
         return x
 
 class inconv(nn.Module):
@@ -118,19 +118,19 @@ class inconv(nn.Module):
         self.double_version = double_version
 
         if circular_padding:
-            self.cbr = nn.Sequential(
+            self.conv = nn.Sequential(
                 nn.BatchNorm2d(in_ch),
                 polar_CBR(in_ch, out_ch, self.double_version)
             )
 
         else:
-            self.cbr = nn.Sequential(
+            self.conv = nn.Sequential(
                 nn.BatchNorm2d(in_ch),
                 CBR(in_ch, out_ch, self.double_version)
             )
         
     def forward(self, x):
-        x = self.cbr(x)
+        x = self.conv(x)
         return x
 
 class up_CBR(nn.Module):
@@ -144,15 +144,15 @@ class up_CBR(nn.Module):
 
         if mode == "UNet":
             if circular_padding :
-                self.cbr = polar_CBR(in_ch, out_ch, self.double_version)
+                self.conv = polar_CBR(in_ch, out_ch, self.double_version)
             else :
-                self.cbr = CBR(in_ch, out_ch, self.double_version)
+                self.conv = CBR(in_ch, out_ch, self.double_version)
 
         if mode == "FCN":
             if circular_padding :
-                self.cbr = polar_CBR(in_ch//2 + out_ch, out_ch, self.double_version)
+                self.conv = polar_CBR(in_ch//2 + out_ch, out_ch, self.double_version)
             else:
-                self.cbr = CBR(in_ch//2 + out_ch, out_ch, self.double_version)
+                self.conv = CBR(in_ch//2 + out_ch, out_ch, self.double_version)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -164,7 +164,7 @@ class up_CBR(nn.Module):
         x1 = F.pad(x1, (left_padding, right_padding, up_padding, down_padding))
 
         x = torch.cat([x2, x1], dim=1)
-        x = self.cbr(x)
+        x = self.conv(x)
 
         if self.double_version:
             x = self.drop(x)
