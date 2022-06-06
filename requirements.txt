@@ -1,33 +1,21 @@
 # local package
 -e .
 
-# external requirements
-click
-Sphinx
-coverage
-awscli
-pipreqs
-python-dotenv>=0.5.1
-pre-commit
-
 # general packages
 tqdm
+python-dotenv>=0.5.1
+pre-commit
+pipreqs
 
 # project specific packages
-numpy
-torch # for pip installation
-torch-scatter 
-wandb
 dropblock>=0.3.0
 numba>=0.55.1
 numpy>=1.21.6
 pytorch_lightning>=1.6.3
 PyYAML>=6.0
+scikit_learn>=1.1.1
 setuptools>=62.2.0
 torch>=1.11.0+cu113
 torch_scatter>=2.0.9
-torchvision>=0.12.0
-torchlars
-
-
-
+torchlars>=0.1.2
+wandb

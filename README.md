@@ -93,6 +93,21 @@ python src/models/predict_model.py --config <your_config.yaml>
 
 --------
 
+## Projection examples
+
+> Note: label colors are just visualization, just similar, but not accurate to the [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api) defined ones.
+
+<tr>
+<td> <img src="/reports/figures/cartesianBEVexample.png" alt="Drawing" style="width: 250px;"/> </td>
+<td> <img src="/reports/figures/polarBEVexample.png" alt="Drawing" style="width: 250px;"/> </td>
+</tr>
+
+<!-- ![Cartesian Projection BEV](/reports/figures/cartesianBEVexample.png) | ![Polar Projection BEV](/reports/figures/polarBEVexample.png) -->
+
+<!-- <img src="/reports/figures/cartesianBEVexample.png" width="425"/> <img src="/reports/figures/polarBEVexample.png" width="425"/>  -->
+
+
+
 ## Results on validation set
 
 > Note: *Paper* refers to the test results of the original paper from Zhang et al.
