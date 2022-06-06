@@ -1,12 +1,13 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch_scatter
-import numpy as np
 from numba import jit
 
 from src.features.my_BEV_Unet import Unet
-from src.features.my_FCN_resnet import ResNet_FCN
 from src.features.my_DL_resnet import ResNet_DL
+from src.features.my_FCN_resnet import ResNet_FCN
+
 
 class ptBEVnet(nn.Module):
     def __init__(
@@ -19,7 +20,7 @@ class ptBEVnet(nn.Module):
         out_pt_fea_dim=512,
         max_pt_per_encode=256,
         circular_padding=False,
-        nine_feature = True
+        nine_feature=True,
     ):
         super(ptBEVnet, self).__init__()
 
@@ -36,13 +37,13 @@ class ptBEVnet(nn.Module):
         if projection_type in ["cartesian", "spherical"]:
             fea_dim = 7
         elif projection_type == "polar":
-            if nine_feature :
+            if nine_feature:
                 fea_dim = 9
-            else :
+            else:
                 fea_dim = 3
         else:
             AssertionError, "incorrect projection type"
-        
+
         # CITATION: Simplified pointnet structure from https://github.com/edwardzhou130/PolarSeg
         self.PointNet = nn.Sequential(
             nn.BatchNorm1d(fea_dim),
@@ -86,14 +87,14 @@ class ptBEVnet(nn.Module):
 
         random_ind = torch.randperm(num, device=device)
         fea, ind = torch.index_select(fea, dim=0, index=random_ind), torch.index_select(ind, dim=0, index=random_ind)
-        
+
         unq, unq_inv, unq_cnt = torch.unique(ind, return_inverse=True, return_counts=True, dim=0)
-        #x_sort_ind = ind[ind[:,1].sort()[1]]
-        #sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
-        #unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
-        #unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
-        #unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
-        #unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
+        # x_sort_ind = ind[ind[:,1].sort()[1]]
+        # sort_xy_ind = x_sort_ind[x_sort_ind[:,0].sort()[1]]
+        # unq, unq_inv, unq_cnt = index_sort(sort_xy_ind.detach().cpu().numpy(),ind.detach().cpu().numpy(), pt_num)
+        # unq = torch.tensor(unq, dtype=torch.int64, device = self.device)
+        # unq_inv = torch.tensor(unq_inv, dtype=torch.int64, device = self.device)
+        # unq_cnt = torch.tensor(unq_cnt, dtype=torch.int64, device = self.device)
 
         if self.sampling:
             # CITATION: random sampling from https://github.com/edwardzhou130/PolarSeg
@@ -108,12 +109,11 @@ class ptBEVnet(nn.Module):
         pointnet_fea = self.PointNet(fea)
 
         max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
-
         # max_pointnet_fea = []
         # for i in range(len(unq)):
-        #    max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
+        #   max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
         # max_pointnet_fea = torch.stack(max_pointnet_fea)
-        
+
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
 
@@ -121,12 +121,14 @@ class ptBEVnet(nn.Module):
 
         return backbone_fea
 
+
 def grp_range_torch(a, dev):
     idx = torch.cumsum(a, 0)
     id_arr = torch.ones(idx[-1], dtype=torch.int64, device=dev)
     id_arr[0] = 0
     id_arr[idx[:-1]] = -a[:-1] + 1
     return torch.cumsum(id_arr, 0)
+
 
 @jit(nopython=True)
 def index_sort(sort_ind, xy_ind, pt_num):
