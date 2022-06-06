@@ -107,7 +107,7 @@ class CBR(nn.Module):
         )
 
     def forward(self, x):
-        x = self.conv2(x)
+        x = self.conv1(x)
         if self.double_version:
             x = self.conv2(x)
         return x
