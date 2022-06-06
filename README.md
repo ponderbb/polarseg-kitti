@@ -1,7 +1,8 @@
 polarseg-kitti
 ==============================
 
-This repository contains a re-implementation of the PolarNet architecture ([arxiv](https://arxiv.org/abs/2003.14032)), developed by Zhang et al, as a development track project for the CS492 class at KAIST.
+This repository contains a PyTorch Lightning re-implementation of the PolarNet architecture ([arxiv](https://arxiv.org/abs/2003.14032)), published by Zhang et al. It is a Development Track term project for the CS492 course at KAIST.
+
 
 ## Initial steps
 
@@ -105,11 +106,26 @@ The black marks indicate the voxel origins for limited volume space and the gray
 </p>
 
 
-## Results on validation set
+## Experimental results
 
 > Note: *Paper* refers to the test results of the original paper from Zhang et al.
 
 ![Validation results](reports/figures/Segmentation%20results%20on%20validation%20split%20of%20SemanticKITTI.png)
+
+![Test set results](reports/figures/Segmentation%20results%20on%20test%20split%20of%20SemanticKITTI.png)
+
+
+>Note: The following figures is created based on results from the `evaluate_semantics_by_distance.py` and `visualize_voxels.py` from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api).
+
+
+<p float="left">
+  <img src=reports/figures/evaluate_semantics_by_distance.png width=500>
+  <img src="reports/figures/visualize_polar_projection.png" width="250
+  " /> 
+</p>
+
+reports/figures/visualize_polar_projection.png
+
 
 ## Reference list
 
