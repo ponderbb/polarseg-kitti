@@ -2,8 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class CBR(nn.Module):
-    def __init__(self, in_ch, out_ch, circular_padding, filter_size=3, padding_size=1, bias=True, act=True, stride =1, groups = 1):
+    def __init__(
+        self, in_ch, out_ch, circular_padding, filter_size=3, padding_size=1, bias=True, act=True, stride=1, groups=1
+    ):
         super(CBR, self).__init__()
 
         self.circular_padding = circular_padding
@@ -18,15 +21,31 @@ class CBR(nn.Module):
         else:
             self.padding_version = (self.padding_size, self.padding_size)
 
-        if act :
+        if act:
             self.conv = nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, kernel_size=self.filter_size, padding=self.padding_version, bias=self.bias, stride = self.stride, groups = self.groups),
+                nn.Conv2d(
+                    in_ch,
+                    out_ch,
+                    kernel_size=self.filter_size,
+                    padding=self.padding_version,
+                    bias=self.bias,
+                    stride=self.stride,
+                    groups=self.groups,
+                ),
                 nn.BatchNorm2d(out_ch),
                 nn.LeakyReLU(inplace=True),
             )
-        else :
+        else:
             self.conv = nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, kernel_size=self.filter_size, padding=self.padding_version, bias=self.bias, stride = self.stride, groups = self.groups),
+                nn.Conv2d(
+                    in_ch,
+                    out_ch,
+                    kernel_size=self.filter_size,
+                    padding=self.padding_version,
+                    bias=self.bias,
+                    stride=self.stride,
+                    groups=self.groups,
+                ),
                 nn.BatchNorm2d(out_ch),
             )
 
@@ -51,12 +70,26 @@ class up_CBR(nn.Module):
 
         self.up = nn.ConvTranspose2d(in_ch // 2, in_ch // 2, 2, stride=2, groups=in_ch // 2)
         if mode == "UNet":
-            self.conv = CBR(in_ch, out_ch, self.circular_padding, filter_size=self.filter_size, padding_size=self.padding_size, bias=self.bias)
+            self.conv = CBR(
+                in_ch,
+                out_ch,
+                self.circular_padding,
+                filter_size=self.filter_size,
+                padding_size=self.padding_size,
+                bias=self.bias,
+            )
         if mode == "FCN":
-            self.conv = CBR(in_ch//2 + out_ch, out_ch, self.circular_padding, filter_size=self.filter_size, padding_size=self.padding_size, bias=self.bias)
+            self.conv = CBR(
+                in_ch // 2 + out_ch,
+                out_ch,
+                self.circular_padding,
+                filter_size=self.filter_size,
+                padding_size=self.padding_size,
+                bias=self.bias,
+            )
 
     def forward(self, x1, x2):
-        # TODO: cite this
+        # CITATION: from https://github.com/edwardzhou130/PolarSeg
         x1 = self.up(x1)
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
@@ -78,7 +111,14 @@ class down_CBR(nn.Module):
         self.bias = bias
 
         self.pooling = nn.MaxPool2d(2)
-        self.conv = CBR(in_ch, out_ch, self.circular_padding, filter_size=self.filter_size, padding_size=self.padding_size, bias=self.bias)
+        self.conv = CBR(
+            in_ch,
+            out_ch,
+            self.circular_padding,
+            filter_size=self.filter_size,
+            padding_size=self.padding_size,
+            bias=self.bias,
+        )
 
     def forward(self, x):
         x = self.pooling(x)
@@ -118,20 +158,20 @@ def compute_block_mask(mask, block_size):
 
 class Res_block(nn.Module):
     def __init__(self, in_ch, mid_ch, out_ch, circular_padding):
-        super(Res_block,self).__init__()
+        super(Res_block, self).__init__()
         self.relu = nn.ReLU()
         self.circular_padding = circular_padding
-        if in_ch == 64 or in_ch==out_ch:
+        if in_ch == 64 or in_ch == out_ch:
             self.convseq = nn.Sequential(
                 CBR(in_ch=in_ch, out_ch=mid_ch, circular_padding=False, filter_size=1, padding_size=0),
                 CBR(in_ch=mid_ch, out_ch=mid_ch, circular_padding=self.circular_padding, filter_size=3, padding_size=1),
                 CBR(in_ch=mid_ch, out_ch=out_ch, circular_padding=False, filter_size=1, padding_size=0, act=False),
             )
-            if in_ch == 64: 
+            if in_ch == 64:
                 self.iden = nn.Conv2d(in_ch, out_ch, kernel_size=1, stride=1)
-            else : 
+            else:
                 self.iden = nn.Identity()
-        
+
         else:
             self.convseq = nn.Sequential(
                 CBR(in_ch=in_ch, out_ch=mid_ch, circular_padding=False, filter_size=1, padding_size=0, stride=2),
@@ -139,9 +179,9 @@ class Res_block(nn.Module):
                 CBR(in_ch=mid_ch, out_ch=out_ch, circular_padding=False, filter_size=1, padding_size=0, act=False),
             )
             self.iden = nn.Conv2d(in_ch, out_ch, kernel_size=1, stride=2)
-        
+
     def forward(self, x):
-        y = self.convseq(x) 
+        y = self.convseq(x)
         x = y + self.iden(x)
         x = self.relu(x)
         return x
