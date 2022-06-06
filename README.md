@@ -142,7 +142,7 @@ The following is a reference list for functions used or inspired by other reposi
 
 Citation for the original paper:
 
-```shell
+```
 @InProceedings{Zhang_2020_CVPR,
 author = {Zhang, Yang and Zhou, Zixiang and David, Philip and Yue, Xiangyu and Xi, Zerong and Gong, Boqing and Foroosh, Hassan},
 title = {PolarNet: An Improved Grid Representation for Online LiDAR Point Clouds Semantic Segmentation},
