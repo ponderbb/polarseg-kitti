@@ -10,12 +10,14 @@ from sklearn.metrics import confusion_matrix
 np.seterr(invalid="ignore")  # resolve true divide warning
 
 
-def limit(input, min_bound, max_bound, out_type=int):
+def rebase(input, min_bound, max_bound, out_type=int):
     """
     limit volume space of point cloud to ROI
     """
     assert (min_bound < max_bound).all(), "lower and upper volume boundary mismatching"
-    return np.minimum(max_bound, np.maximum(input, min_bound))
+    limited_coordinate = np.minimum(max_bound, np.maximum(input, min_bound))
+    rebase_to_zero = limited_coordinate - min_bound
+    return rebase_to_zero
 
 
 def write_dict(file: dict, out_path: str):

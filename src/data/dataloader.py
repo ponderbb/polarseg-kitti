@@ -195,9 +195,10 @@ class voxelised_dataset(Dataset):
 
         # limit voxels to certain volume space
         if self.config["augmentations"]["fixed_vol"]:
-            coordinate_limited = utils.limit(coordinate, self.min_vol, self.max_vol)
+            rebased_coordinate = utils.rebase(coordinate, self.min_vol, self.max_vol)
         else:
-            coordinate_limited = coordinate
+            rebased_coordinate = coordinate - self.min_vol
+
             self.max_vol = np.amax(coordinate, axis=0)
             self.min_vol = np.amin(coordinate, axis=0)
 
@@ -240,7 +241,7 @@ class voxelised_dataset(Dataset):
             voxel_size = (self.max_vol - self.min_vol) / (self.grid_size - 1)
 
             # calculate the grid index for each point
-            grid_index = np.floor((coordinate_limited - self.min_vol) / voxel_size).astype(int)
+            grid_index = np.floor(rebased_coordinate / voxel_size).astype(int)
 
         # CITATION: voxel-label voting from https://github.com/edwardzhou130/PolarSeg
         voxel_label = np.full(self.grid_size, self.unlabeled_idx, dtype=np.uint8)
