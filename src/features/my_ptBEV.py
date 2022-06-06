@@ -105,11 +105,12 @@ class ptBEVnet(nn.Module):
             unq_cnt = torch.clamp(unq_cnt, max=self.max_pt)
 
         pointnet_fea = self.PointNet(fea)
-
-        max_pointnet_fea = []
-        for i in range(len(unq)):
-           max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
-        max_pointnet_fea = torch.stack(max_pointnet_fea)
+        
+        max_pointnet_fea = torch_scatter.scatter_max(pointnet_fea, unq_inv, dim=0)[0]
+        #max_pointnet_fea = []
+        #for i in range(len(unq)):
+        #   max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
+        #max_pointnet_fea = torch.stack(max_pointnet_fea)
         
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
