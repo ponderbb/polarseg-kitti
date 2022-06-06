@@ -55,11 +55,11 @@ python src/models/predict_model.py --config <your_config.yaml>
 
     ├── LICENSE
     ├── Makefile           <- Makefile for installing the environment.
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── config             <- configuration files for training, dataloaders and inference
+    ├── README.md          <- The top-level README for general overview.
+    ├── config             <- Configuration files for training, dataloaders and inference
     ├── data
     │   ├── debug          <- Small amount of data separated for debugging purposes.
-    |   └── sequences      <- Read more about the data setup in the other README
+    |   └── sequences      <- Read more about the data setup in the other README.
     |       └── 00/           
     |           ├── velodyne/
     |           └── labels/
@@ -72,14 +72,10 @@ python src/models/predict_model.py --config <your_config.yaml>
     |               ├── 00/
     |               └── predictions/
     │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
     ├── references         <- Data dictionary for SemanticKITTI dataset and helper functions from 
     |                         [https://github.com/PRBonn/semantic-kitti-api]
     │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
+    ├── reports            <- Generated analysis as PDF, LaTeX, etc.
     │   └── figures        <- Generated graphics and figures to be used in reporting
     │
     ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
@@ -97,6 +93,12 @@ python src/models/predict_model.py --config <your_config.yaml>
 
 --------
 
+## Results on validation set
+
+> Note: *Paper* refers to the test results of the original paper from Zhang et al.
+
+![Validation results](reports/figures/Segmentation%20results%20on%20validation%20split%20of%20SemanticKITTI.png)
+
 ## Reference list
 
 The following is a reference list for functions used or inspired by other repositories.
@@ -106,6 +108,16 @@ The following is a reference list for functions used or inspired by other reposi
  - `lovasz_losses.py` <- copied from [Bernman Maxim: LovaszSoftmax](https://github.com/bermanmaxim/LovaszSoftmax)
  - `grp_range_torch, polar_CBR.forward, label_voting, residual_distances` <- copied from [PolarSeg](https://github.com/edwardzhou130/PolarSeg)
 
+Citation for the original paper:
 
+```shell
+@InProceedings{Zhang_2020_CVPR,
+author = {Zhang, Yang and Zhou, Zixiang and David, Philip and Yue, Xiangyu and Xi, Zerong and Gong, Boqing and Foroosh, Hassan},
+title = {PolarNet: An Improved Grid Representation for Online LiDAR Point Clouds Semantic Segmentation},
+booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+month = {June},
+year = {2020}
+}
+```
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
