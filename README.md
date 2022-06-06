@@ -119,7 +119,7 @@ The black marks indicate the voxel origins for limited volume space and the gray
 ![Test set results](reports/figures/Segmentation%20results%20on%20test%20split%20of%20SemanticKITTI.png)
 
 
->Note: The following figures are generated (based on data) from the `evaluate_semantics_by_distance.py` and `visualize_voxels.py` scripts from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api).
+>Note: The following figures is created based on results from the `evaluate_semantics_by_distance.py` and `visualize.py` from [semantic-kitti-api](https://github.com/PRBonn/semantic-kitti-api).
 
 
 <p float="left">
