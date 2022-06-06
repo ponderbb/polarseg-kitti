@@ -167,11 +167,8 @@ def collate_fn(batch):
         grid_index.append(i[1])
         pt_label.append(i[2].astype(np.uint8))
         pt_feature.append(i[3])
-        if len(i) == 5:
-            index.append(i[4])
+        index.append(i[4])
 
-    if index:
-        collated = (np.stack(label), grid_index, pt_label, pt_feature, index)
-    else:
-        collated = (np.stack(label), grid_index, pt_label, pt_feature)
+    collated = (np.stack(label), grid_index, pt_label, pt_feature, index)
+
     return collated

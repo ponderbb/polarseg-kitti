@@ -27,7 +27,8 @@ def main(args):
 
     # run the trained model instance on the validation set
     if args.validate:
-        polar_model = PolarNetModule(args.config, out_sequence=None)
+        polar_datamodule.setup(stage="validate")
+        polar_model = PolarNetModule(args.config, out_sequence=polar_datamodule.semkitti_valid)
         print("---\n Running inference on validation set:\n ---\n")
         trainer.validate(model=polar_model, datamodule=polar_datamodule)
 

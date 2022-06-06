@@ -56,7 +56,7 @@ class PolarNetModule(pl.LightningModule):
             n_class=self.unique_class_idx,
             circular_padding=self.config["augmentations"]["circular_padding"],
             sampling=self.config["sampling"],
-            nine_feature = self.config["augmentations"]["9features"]
+            nine_feature=self.config["augmentations"]["9features"],
         )
 
         # for inference, load state_dict from the <model_name>.pt instance
@@ -84,7 +84,7 @@ class PolarNetModule(pl.LightningModule):
             end = torch.cuda.Event(enable_timing=True)
 
         # extract batch of numpy arrays
-        vox_label, grid_index, pt_label, pt_features = batch
+        vox_label, grid_index, pt_label, pt_features, index = batch
 
         # remap labels from 0->255 [based on documentation from semantic-kitti-api]
         vox_label = utils.move_labels(vox_label, -1)
@@ -119,6 +119,24 @@ class PolarNetModule(pl.LightningModule):
 
         prediction = torch.argmax(prediction, dim=1)
         prediction = prediction.detach().cpu().numpy()
+
+        if self.profiling:
+            for i, __ in enumerate(grid_index):
+                # process point-wise predition labels
+                pt_pred_label = prediction[i, grid_index[i][:, 0], grid_index[i][:, 1], grid_index[i][:, 2]]
+                pt_pred_label = (np.expand_dims(utils.move_labels(pt_pred_label, 1), axis=1)).astype(np.uint32)
+
+                # find id and sequence for the of scan
+                pt_id = Path(self.out_sequence.scan_list[index[i]]).stem
+                sequence = Path(self.out_sequence.scan_list[index[i]]).parents[1].stem
+                new_file_path = "{}sequences/{}/predictions/{}.label".format(
+                    self.inference_path, sequence, str(pt_id).zfill(6)
+                )
+
+                # write out label, if folder is valid
+                if not Path(new_file_path).parents[0].exists():
+                    os.makedirs(Path(new_file_path).parents[0])
+                pt_pred_label.tofile(new_file_path)
 
         # generate confusion matrix from pointwise preditions and labels
         for i, __ in enumerate(grid_index):
@@ -193,7 +211,7 @@ class PolarNetModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        vox_label, grid_index, pt_label, pt_features = batch
+        vox_label, grid_index, pt_label, pt_features, __ = batch
 
         # remap labels from 0->255
         vox_label = utils.move_labels(vox_label, -1)

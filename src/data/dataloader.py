@@ -269,10 +269,7 @@ class voxelised_dataset(Dataset):
                 else:
                     pt_features = np.concatenate((coordinate[:, :2], reflection.reshape(-1, 1)), axis=1)
 
-        if self.data_split == "test":
-            voxelised_data = (voxel_label, grid_index, labels, pt_features, index)
-        else:
-            voxelised_data = (voxel_label, grid_index, labels, pt_features)
+        voxelised_data = (voxel_label, grid_index, labels, pt_features, index)
 
         """
         *complete data_tuple*
