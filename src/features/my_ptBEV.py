@@ -113,10 +113,10 @@ class ptBEVnet(nn.Module):
         # for i in range(len(unq)):
         #   max_pointnet_fea.append(torch.max(pointnet_fea[unq_inv==i],dim=0)[0])
         # max_pointnet_fea = torch.stack(max_pointnet_fea)
-
+        
+        # CITATION: point-to-voxel from https://github.com/edwardzhou130/PolarSeg
         backbone_input_fea = self.make_backbone_input_fea_dim(max_pointnet_fea)
         backbone_data[unq[:, 0], unq[:, 1], unq[:, 2], :] = backbone_input_fea
-
         backbone_fea = self.backbone(backbone_data.permute(0, 3, 1, 2))
 
         return backbone_fea
