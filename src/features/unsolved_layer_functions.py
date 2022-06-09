@@ -125,7 +125,7 @@ class down_CBR(nn.Module):
         x = self.conv(x)
         return x
 
-
+#CITATION BlockDrop library
 class BlockDrop(nn.Module):
     def __init__(self, drop_p=0.5, block_size=7):
         super(BlockDrop, self).__init__()
@@ -154,7 +154,7 @@ def compute_block_mask(mask, block_size):
     block_mask = 1 - block_mask.squeeze(1)
 
     return block_mask
-
+#end of CITATION
 
 class Res_block(nn.Module):
     def __init__(self, in_ch, mid_ch, out_ch, circular_padding):
