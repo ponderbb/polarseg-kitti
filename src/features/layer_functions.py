@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+# CITATION: dropblock library
 from dropblock import DropBlock2D
 
 class Res_block(nn.Module):
